@@ -1,16 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { WorkspaceDto, UserDto } from "@/types/api";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { WorkspaceDto } from "@/types/api";
 import { apiClient } from "@/services/api";
 import { toast } from "sonner";
+import { useAuth } from "./AuthContext";
 
 interface WorkspaceContextType {
   currentWorkspace: WorkspaceDto | null;
   workspaces: WorkspaceDto[];
-  currentUser: UserDto | null;
   isLoading: boolean;
   switchWorkspace: (workspaceId: string) => void;
   createWorkspace: (name: string, slug: string) => Promise<WorkspaceDto | null>;
   refreshWorkspaces: () => Promise<void>;
+  isOnlyWorkspace: boolean;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -18,27 +19,30 @@ const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefin
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { currentUser, isAuthenticated } = useAuth();
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceDto | null>(null);
-  const [currentUser, setCurrentUser] = useState<UserDto | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const fetchInitialData = async () => {
+  const fetchWorkspaces = useCallback(async () => {
+    if (!isAuthenticated || !currentUser) {
+      setWorkspaces([]);
+      setCurrentWorkspace(null);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
-      // 获取当前用户及工作空间
       const authData = (await apiClient.get("/auth/me")) as any;
-      if (authData?.user) {
-        setCurrentUser(authData.user);
-      }
       if (authData?.workspaces && Array.isArray(authData.workspaces)) {
         setWorkspaces(authData.workspaces);
 
         const savedWsId = localStorage.getItem("arturia_workspace_id");
         const found = authData.workspaces.find((w: WorkspaceDto) => w.id === savedWsId);
-        const targetWs = found || authData.workspaces[0];
+        const targetWs = found || authData.workspaces[0] || null;
+        setCurrentWorkspace(targetWs);
         if (targetWs) {
-          setCurrentWorkspace(targetWs);
           localStorage.setItem("arturia_workspace_id", targetWs.id);
         }
       }
@@ -47,11 +51,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentUser, isAuthenticated]);
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
 
   const switchWorkspace = (workspaceId: string) => {
     const target = workspaces.find((w) => w.id === workspaceId);
@@ -95,11 +99,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         currentWorkspace,
         workspaces,
-        currentUser,
         isLoading,
         switchWorkspace,
         createWorkspace,
         refreshWorkspaces,
+        isOnlyWorkspace: workspaces.length <= 1,
       }}
     >
       {children}

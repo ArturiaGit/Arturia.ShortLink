@@ -17,8 +17,8 @@ export const apiClient: AxiosInstance = axios.create({
 // 请求拦截器：注入租户上下文与 Token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem("arturia_token") || "mock-jwt-token-superadmin";
-    const workspaceId = localStorage.getItem("arturia_workspace_id") || "ws-1";
+    const token = localStorage.getItem("arturia_token");
+    const workspaceId = localStorage.getItem("arturia_workspace_id");
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

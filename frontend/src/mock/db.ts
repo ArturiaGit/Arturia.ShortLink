@@ -1,7 +1,16 @@
 import { UserDto, WorkspaceDto, DomainDto, ShortLinkDto, TeamMemberDto, ApiKeyDto, OverviewStatsDto } from "@/types/api";
 
+export interface MockUserAccount extends UserDto {
+  password?: string;
+  workspaces: {
+    workspaceId: string;
+    role: "owner" | "admin" | "member";
+  }[];
+}
+
 export interface MockDatabase {
   currentUser: UserDto;
+  users: MockUserAccount[];
   workspaces: WorkspaceDto[];
   domains: Record<string, DomainDto[]>; // workspaceId -> domains
   links: Record<string, ShortLinkDto[]>; // workspaceId -> links
@@ -11,17 +20,37 @@ export interface MockDatabase {
 
 const STORAGE_KEY = "arturia_shortlink_mock_db";
 
-const DEFAULT_DB: MockDatabase = {
-  currentUser: {
+const DEFAULT_USERS: MockUserAccount[] = [
+  {
     id: "usr-admin-1",
-    email: "admin@arturia.com",
-    nickname: "Arturia Admin",
+    email: "admin@arturia.link",
+    nickname: "Arturia 管理员",
     avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    password: "password123",
+    workspaces: [
+      { workspaceId: "ws-1", role: "owner" },
+      { workspaceId: "ws-2", role: "admin" },
+    ],
   },
+  {
+    id: "usr-member-1",
+    email: "member@arturia.link",
+    nickname: "普通协作者 (Alex)",
+    avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    password: "password123",
+    workspaces: [
+      { workspaceId: "ws-1", role: "member" },
+    ],
+  },
+];
+
+const DEFAULT_DB: MockDatabase = {
+  currentUser: DEFAULT_USERS[0],
+  users: DEFAULT_USERS,
   workspaces: [
     {
       id: "ws-1",
-      name: "Arturia 官方团队",
+      name: "Arturia 核心主空间",
       slug: "arturia-core",
       role: "owner",
       plan: "Enterprise",
@@ -29,7 +58,7 @@ const DEFAULT_DB: MockDatabase = {
     },
     {
       id: "ws-2",
-      name: "海外增长团队",
+      name: "海外营销增长团队",
       slug: "global-growth",
       role: "admin",
       plan: "Pro",
@@ -163,8 +192,8 @@ const DEFAULT_DB: MockDatabase = {
       {
         id: "tm-1",
         userId: "usr-admin-1",
-        email: "admin@arturia.com",
-        nickname: "Arturia Admin",
+        email: "admin@arturia.link",
+        nickname: "Arturia 管理员",
         avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         role: "owner",
         joinedAt: "2026-01-01T08:00:00Z",
@@ -172,7 +201,7 @@ const DEFAULT_DB: MockDatabase = {
       {
         id: "tm-2",
         userId: "usr-2",
-        email: "sarah.chen@arturia.com",
+        email: "sarah.chen@arturia.link",
         nickname: "Sarah Chen",
         avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
         role: "admin",
@@ -180,9 +209,9 @@ const DEFAULT_DB: MockDatabase = {
       },
       {
         id: "tm-3",
-        userId: "usr-3",
-        email: "alex.wang@arturia.com",
-        nickname: "Alex Wang",
+        userId: "usr-member-1",
+        email: "member@arturia.link",
+        nickname: "普通协作者 (Alex)",
         avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
         role: "member",
         joinedAt: "2026-02-01T14:00:00Z",
@@ -192,11 +221,20 @@ const DEFAULT_DB: MockDatabase = {
       {
         id: "tm-4",
         userId: "usr-admin-1",
-        email: "admin@arturia.com",
-        nickname: "Arturia Admin",
+        email: "admin@arturia.link",
+        nickname: "Arturia 管理员",
         avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         role: "admin",
         joinedAt: "2026-02-15T10:30:00Z",
+      },
+      {
+        id: "tm-5",
+        userId: "usr-4",
+        email: "david.lee@arturia.link",
+        nickname: "David Lee",
+        avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+        role: "owner",
+        joinedAt: "2026-02-10T08:00:00Z",
       },
     ],
   },
@@ -236,7 +274,10 @@ export class MockDB {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       if (data) {
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        if (parsed && parsed.workspaces && parsed.users) {
+          return parsed;
+        }
       }
     } catch {
       // ignore
@@ -265,8 +306,186 @@ export class MockDB {
     return this.getDB().currentUser;
   }
 
+  static setCurrentUser(user: UserDto): void {
+    const db = this.getDB();
+    db.currentUser = user;
+    this.saveDB(db);
+  }
+
+  static getUserWorkspaces(userId: string): WorkspaceDto[] {
+    const db = this.getDB();
+    const user = db.users.find((u) => u.id === userId);
+    if (!user) {
+      return db.workspaces.map((w) => ({ ...w, role: "owner" as const }));
+    }
+    return user.workspaces.map((userWs) => {
+      const ws = db.workspaces.find((w) => w.id === userWs.workspaceId);
+      if (ws) {
+        return { ...ws, role: userWs.role };
+      }
+      return {
+        id: userWs.workspaceId,
+        name: "默认空间",
+        slug: "default-space",
+        role: userWs.role,
+      };
+    });
+  }
+
+  static login(email: string): { user: UserDto; token: string; workspaces: WorkspaceDto[] } {
+    const db = this.getDB();
+    let found = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!found) {
+      // 若无该账号，自动初始化为新用户
+      const newUserId = `usr-${Date.now()}`;
+      found = {
+        id: newUserId,
+        email,
+        nickname: email.split("@")[0] || "新用户",
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(email)}`,
+        workspaces: [
+          { workspaceId: "ws-1", role: "member" },
+        ],
+      };
+      db.users.push(found);
+    }
+    db.currentUser = {
+      id: found.id,
+      email: found.email,
+      nickname: found.nickname,
+      avatarUrl: found.avatarUrl,
+    };
+    this.saveDB(db);
+
+    const workspaces = this.getUserWorkspaces(found.id);
+    return {
+      user: db.currentUser,
+      token: `mock-jwt-token-${found.id}`,
+      workspaces,
+    };
+  }
+
+  static register(nickname: string, email: string): { user: UserDto; token: string; workspaces: WorkspaceDto[] } {
+    const db = this.getDB();
+    const existing = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      throw new Error("该邮箱已被注册，请直接登录");
+    }
+
+    const newUserId = `usr-${Date.now()}`;
+    const newWsId = `ws-${Date.now()}`;
+    const slug = nickname.toLowerCase().replace(/[^a-z0-9]/g, "") || `team-${Date.now().toString().slice(-4)}`;
+
+    const newWs: WorkspaceDto = {
+      id: newWsId,
+      name: `${nickname} 的空间`,
+      slug: slug,
+      role: "owner",
+      plan: "Free",
+      createdAt: new Date().toISOString(),
+    };
+    db.workspaces.push(newWs);
+    db.domains[newWsId] = [
+      {
+        id: `dom-${Date.now()}`,
+        domain: "art.link",
+        isSystem: true,
+        isVerified: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    db.links[newWsId] = [];
+    db.apiKeys[newWsId] = [];
+
+    const newUser: MockUserAccount = {
+      id: newUserId,
+      email,
+      nickname,
+      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(nickname)}`,
+      workspaces: [{ workspaceId: newWsId, role: "owner" }],
+    };
+    db.users.push(newUser);
+    db.currentUser = {
+      id: newUser.id,
+      email: newUser.email,
+      nickname: newUser.nickname,
+      avatarUrl: newUser.avatarUrl,
+    };
+
+    db.teamMembers[newWsId] = [
+      {
+        id: `tm-${Date.now()}`,
+        userId: newUser.id,
+        email: newUser.email,
+        nickname: newUser.nickname,
+        avatarUrl: newUser.avatarUrl,
+        role: "owner",
+        joinedAt: new Date().toISOString(),
+      },
+    ];
+
+    this.saveDB(db);
+
+    return {
+      user: db.currentUser,
+      token: `mock-jwt-token-${newUser.id}`,
+      workspaces: [newWs],
+    };
+  }
+
   static getWorkspaces(): WorkspaceDto[] {
-    return this.getDB().workspaces;
+    const db = this.getDB();
+    return this.getUserWorkspaces(db.currentUser.id);
+  }
+
+  static isSlugTaken(slug: string): boolean {
+    const db = this.getDB();
+    return db.workspaces.some((w) => w.slug.toLowerCase() === slug.toLowerCase());
+  }
+
+  static addWorkspace(name: string, slug: string): WorkspaceDto {
+    const db = this.getDB();
+    const newWsId = `ws-${Date.now()}`;
+    const newWs: WorkspaceDto = {
+      id: newWsId,
+      name,
+      slug,
+      role: "owner",
+      plan: "Free",
+      createdAt: new Date().toISOString(),
+    };
+    db.workspaces.push(newWs);
+
+    // 将新工作空间关联到当前用户
+    const userInDb = db.users.find((u) => u.id === db.currentUser.id);
+    if (userInDb) {
+      userInDb.workspaces.push({ workspaceId: newWsId, role: "owner" });
+    }
+
+    db.domains[newWsId] = [
+      {
+        id: `dom-${Date.now()}`,
+        domain: "art.link",
+        isSystem: true,
+        isVerified: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    db.links[newWsId] = [];
+    db.teamMembers[newWsId] = [
+      {
+        id: `tm-${Date.now()}`,
+        userId: db.currentUser.id,
+        email: db.currentUser.email,
+        nickname: db.currentUser.nickname,
+        avatarUrl: db.currentUser.avatarUrl,
+        role: "owner",
+        joinedAt: new Date().toISOString(),
+      },
+    ];
+    db.apiKeys[newWsId] = [];
+    this.saveDB(db);
+    return newWs;
   }
 
   static getDomains(workspaceId: string): DomainDto[] {
@@ -303,40 +522,78 @@ export class MockDB {
     };
   }
 
-  static addWorkspace(name: string, slug: string): WorkspaceDto {
+  // Team Member Management
+  static getTeamMembers(workspaceId: string): TeamMemberDto[] {
     const db = this.getDB();
-    const newWs: WorkspaceDto = {
-      id: `ws-${Date.now()}`,
-      name,
-      slug,
-      role: "owner",
-      plan: "Free",
-      createdAt: new Date().toISOString(),
+    return db.teamMembers[workspaceId] || [];
+  }
+
+  static addTeamMember(
+    workspaceId: string,
+    email: string,
+    role: "admin" | "member"
+  ): TeamMemberDto {
+    const db = this.getDB();
+    if (!db.teamMembers[workspaceId]) {
+      db.teamMembers[workspaceId] = [];
+    }
+
+    // 检查是否已在该空间
+    const existing = db.teamMembers[workspaceId].find(
+      (m) => m.email.toLowerCase() === email.toLowerCase()
+    );
+    if (existing) {
+      throw new Error("该成员已存在于当前工作空间");
+    }
+
+    const nickname = email.split("@")[0];
+    const newMember: TeamMemberDto = {
+      id: `tm-${Date.now()}`,
+      userId: `usr-${Date.now()}`,
+      email,
+      nickname,
+      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(nickname)}`,
+      role,
+      joinedAt: new Date().toISOString(),
     };
-    db.workspaces.push(newWs);
-    db.domains[newWs.id] = [
-      {
-        id: `dom-${Date.now()}`,
-        domain: "art.link",
-        isSystem: true,
-        isVerified: true,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-    db.links[newWs.id] = [];
-    db.teamMembers[newWs.id] = [
-      {
-        id: `tm-${Date.now()}`,
-        userId: db.currentUser.id,
-        email: db.currentUser.email,
-        nickname: db.currentUser.nickname,
-        avatarUrl: db.currentUser.avatarUrl,
-        role: "owner",
-        joinedAt: new Date().toISOString(),
-      },
-    ];
-    db.apiKeys[newWs.id] = [];
+
+    db.teamMembers[workspaceId].push(newMember);
     this.saveDB(db);
-    return newWs;
+    return newMember;
+  }
+
+  static updateTeamMemberRole(
+    workspaceId: string,
+    memberId: string,
+    newRole: "admin" | "member"
+  ): TeamMemberDto {
+    const db = this.getDB();
+    const members = db.teamMembers[workspaceId] || [];
+    const target = members.find((m) => m.id === memberId);
+    if (!target) {
+      throw new Error("目标成员未找到");
+    }
+    if (target.role === "owner") {
+      throw new Error("所有者（Owner）角色不可被降级");
+    }
+
+    target.role = newRole;
+    this.saveDB(db);
+    return target;
+  }
+
+  static removeTeamMember(workspaceId: string, memberId: string): void {
+    const db = this.getDB();
+    const members = db.teamMembers[workspaceId] || [];
+    const target = members.find((m) => m.id === memberId);
+    if (!target) {
+      throw new Error("目标成员未找到");
+    }
+    if (target.role === "owner") {
+      throw new Error("无法从工作空间中移除空间所有者（Owner）");
+    }
+
+    db.teamMembers[workspaceId] = members.filter((m) => m.id !== memberId);
+    this.saveDB(db);
   }
 }
