@@ -26,7 +26,7 @@ const DEFAULT_USERS: MockUserAccount[] = [
     email: "admin@arturia.link",
     nickname: "Arturia 管理员",
     avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    password: "password123",
+    password: "password123!",
     workspaces: [
       { workspaceId: "ws-1", role: "owner" },
       { workspaceId: "ws-2", role: "admin" },
@@ -37,7 +37,7 @@ const DEFAULT_USERS: MockUserAccount[] = [
     email: "member@arturia.link",
     nickname: "普通协作者 (Alex)",
     avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    password: "password123",
+    password: "password123!",
     workspaces: [
       { workspaceId: "ws-1", role: "member" },
     ],

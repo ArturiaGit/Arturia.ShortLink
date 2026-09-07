@@ -4,7 +4,16 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Link2, ShieldCheck, UserCheck, ArrowRight, Loader2 } from "lucide-react";
+import {
+  Link2,
+  ShieldCheck,
+  UserCheck,
+  ArrowRight,
+  Loader2,
+  Eye,
+  EyeOff,
+  AlertCircle,
+} from "lucide-react";
 
 export const LoginPage: React.FC = () => {
   const { login, fillDemoAccount } = useAuth();
@@ -14,11 +23,18 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [touchedEmail, setTouchedEmail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isPasswordProvided = password.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    setTouchedEmail(true);
+
+    if (!isEmailValid || !isPasswordProvided) return;
 
     setSubmitting(true);
     const success = await login(email.trim(), password);
@@ -29,6 +45,7 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleDemoLogin = async (role: "admin" | "member") => {
+    setTouchedEmail(false);
     setSubmitting(true);
     const success = await fillDemoAccount(role);
     setSubmitting(false);
@@ -63,43 +80,77 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">工作邮箱</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs font-medium">
+                工作邮箱
+              </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => setTouchedEmail(true)}
                 required
                 disabled={submitting}
-                className="h-10"
+                className={
+                  touchedEmail && email.length > 0 && !isEmailValid
+                    ? "border-destructive focus-visible:ring-destructive h-10"
+                    : "h-10"
+                }
               />
+              {touchedEmail && email.length > 0 && !isEmailValid && (
+                <p className="text-[11px] text-destructive flex items-center gap-1 mt-1 animate-in fade-in-0">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  <span>请输入有效的电子邮箱格式 (如 user@company.com)</span>
+                </p>
+              )}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password">登录密码</Label>
-                <span className="text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+                <Label htmlFor="password" className="text-xs font-medium">
+                  登录密码
+                </Label>
+                <span className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
                   忘记密码?
                 </span>
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={submitting}
-                className="h-10"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="h-10 pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-0 top-0 h-10 w-10 p-0 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">
+                    {showPassword ? "隐藏密码" : "显示密码"}
+                  </span>
+                </Button>
+              </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-10 gap-2 font-medium"
-              disabled={submitting}
+              className="w-full h-10 gap-2 font-medium mt-2"
+              disabled={submitting || (touchedEmail && !isEmailValid)}
             >
               {submitting ? (
                 <>

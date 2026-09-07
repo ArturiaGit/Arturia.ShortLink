@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fillDemoAccount = async (role: "admin" | "member"): Promise<boolean> => {
     const email = role === "admin" ? "admin@arturia.link" : "member@arturia.link";
-    return login(email, "password123");
+    return login(email, "password123!");
   };
 
   return (
