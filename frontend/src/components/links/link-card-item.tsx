@@ -20,13 +20,17 @@ import {
   Pencil,
   Trash2,
   Globe,
+  QrCode,
+  Clock,
 } from "lucide-react";
+import { formatRemainingTime } from "@/lib/link-status";
 
 interface LinkCardItemProps {
   link: ShortLinkDto;
   onEdit: (link: ShortLinkDto) => void;
   onDelete: (link: ShortLinkDto) => void;
   onToggleStatus: (link: ShortLinkDto) => void;
+  onOpenQrCode: (link: ShortLinkDto) => void;
 }
 
 export const LinkCardItem: React.FC<LinkCardItemProps> = ({
@@ -34,6 +38,7 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
   onEdit,
   onDelete,
   onToggleStatus,
+  onOpenQrCode,
 }) => {
   // 提取目标 URL 的主域名用于展示 favicon 占位
   let hostname = "";
@@ -78,7 +83,21 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
               </a>
 
               <CopyButton text={link.fullShortUrl} />
-              <LinkStatusBadge isEnabled={link.isEnabled} hasPassword={link.hasPassword} />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpenQrCode(link)}
+                className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                title="定制与下载专属动态二维码"
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                <span className="sr-only">二维码</span>
+              </Button>
+              <LinkStatusBadge
+                isEnabled={link.isEnabled}
+                hasPassword={link.hasPassword}
+                expiresAt={link.expiresAt}
+              />
             </div>
 
             {/* 标题 */}
@@ -102,15 +121,24 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
               </a>
             </div>
 
-            {/* 描述与创建日期 */}
+            {/* 描述、有效期与创建日期 */}
             <div className="flex items-center gap-4 text-xs text-muted-foreground pt-0.5 flex-wrap">
               {link.description && (
                 <span className="truncate max-w-md text-muted-foreground/80">
                   {link.description}
                 </span>
               )}
+              {link.expiresAt && (
+                <span
+                  className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground/80"
+                  title={`失效时间: ${link.expiresAt}`}
+                >
+                  <Clock className="h-3 w-3 text-muted-foreground/60" />
+                  <span>{formatRemainingTime(link.expiresAt)}</span>
+                </span>
+              )}
               {formattedDate && (
-                <span className="flex items-center gap-1 text-muted-foreground/60 font-mono">
+                <span className="flex items-center gap-1 text-muted-foreground/60 font-mono text-[11px]">
                   <Calendar className="h-3 w-3" />
                   {formattedDate}
                 </span>
@@ -172,6 +200,10 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
               <DropdownMenuItem onClick={() => onEdit(link)} className="gap-2 text-xs">
                 <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>编辑短链属性</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onOpenQrCode(link)} className="gap-2 text-xs">
+                <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>定制专属二维码</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => window.open(link.originalUrl, "_blank")}

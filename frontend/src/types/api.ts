@@ -49,6 +49,7 @@ export interface ShortLinkDto {
   description?: string;
   isEnabled: boolean;
   hasPassword?: boolean;
+  password?: string;
   pvCount: number;
   uvCount: number;
   expiresAt?: string | null;
@@ -63,12 +64,17 @@ export interface CreateShortLinkDto {
   originalUrl: string;
   title?: string;
   description?: string;
+  password?: string;
+  expiresAt?: string | null;
 }
 
 export interface UpdateShortLinkDto {
   originalUrl?: string;
   title?: string;
   description?: string;
+  password?: string;
+  hasPassword?: boolean;
+  expiresAt?: string | null;
 }
 
 export interface CheckSlugResultDto {

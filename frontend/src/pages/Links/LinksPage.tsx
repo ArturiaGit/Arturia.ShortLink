@@ -7,8 +7,10 @@ import { QuickShortenBar } from "@/components/links/quick-shorten-bar";
 import { LinkCardItem } from "@/components/links/link-card-item";
 import { LinkDrawer } from "@/components/links/link-drawer";
 import { DeleteLinkDialog } from "@/components/links/delete-link-dialog";
+import { QrCodeDialog } from "@/components/links/qr-code-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { exportLinksToCsv } from "@/lib/export-csv";
+import { getLinkComputedStatus } from "@/lib/link-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -43,13 +45,19 @@ export const LinksPage: React.FC = () => {
   // 搜索与过滤条件
   const [keyword, setKeyword] = useState("");
   const [domainFilter, setDomainFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "expiring" | "expired" | "paused"
+  >("all");
   const [currentPage, setCurrentPage] = useState(1);
 
   // 侧边抽屉控制
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [activeLink, setActiveLink] = useState<ShortLinkDto | null>(null);
+
+  // 二维码定制弹窗控制
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [linkForQr, setLinkForQr] = useState<ShortLinkDto | null>(null);
 
   // 删除弹窗控制
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -95,11 +103,18 @@ export const LinksPage: React.FC = () => {
       // 域名筛选
       const matchesDomain = domainFilter === "all" || l.domain === domainFilter;
 
-      // 启停状态筛选
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" && l.isEnabled) ||
-        (statusFilter === "paused" && !l.isEnabled);
+      // 综合状态筛选（有效、即将到期、已过期、已暂停）
+      const computed = getLinkComputedStatus(l);
+      let matchesStatus = true;
+      if (statusFilter === "active") {
+        matchesStatus = computed === "active";
+      } else if (statusFilter === "expiring") {
+        matchesStatus = computed === "expiring";
+      } else if (statusFilter === "expired") {
+        matchesStatus = computed === "expired";
+      } else if (statusFilter === "paused") {
+        matchesStatus = computed === "paused";
+      }
 
       return matchesKeyword && matchesDomain && matchesStatus;
     });
@@ -153,6 +168,12 @@ export const LinksPage: React.FC = () => {
     setActiveLink(link);
     setDrawerMode("edit");
     setDrawerOpen(true);
+  };
+
+  // 打开专属二维码弹窗
+  const handleOpenQrCode = (link: ShortLinkDto) => {
+    setLinkForQr(link);
+    setQrDialogOpen(true);
   };
 
   // 打开删除确认框
@@ -270,7 +291,7 @@ export const LinksPage: React.FC = () => {
           {/* 状态筛选 */}
           <Select
             value={statusFilter}
-            onValueChange={(val: "all" | "active" | "paused") => setStatusFilter(val)}
+            onValueChange={(val: "all" | "active" | "expiring" | "expired" | "paused") => setStatusFilter(val)}
           >
             <SelectTrigger className="w-full sm:w-36 h-9 text-xs">
               <SelectValue placeholder="筛选状态" />
@@ -280,10 +301,16 @@ export const LinksPage: React.FC = () => {
                 全部状态
               </SelectItem>
               <SelectItem value="active" className="text-xs">
-                仅已启用
+                正常生效中
+              </SelectItem>
+              <SelectItem value="expiring" className="text-xs">
+                即将到期 (&lt;24h)
+              </SelectItem>
+              <SelectItem value="expired" className="text-xs">
+                已过期失效
               </SelectItem>
               <SelectItem value="paused" className="text-xs">
-                仅已暂停
+                已暂停访问
               </SelectItem>
             </SelectContent>
           </Select>
@@ -355,6 +382,7 @@ export const LinksPage: React.FC = () => {
               onEdit={handleEdit}
               onDelete={handleDeleteClick}
               onToggleStatus={handleToggleStatus}
+              onOpenQrCode={handleOpenQrCode}
             />
           ))}
         </div>
@@ -417,6 +445,13 @@ export const LinksPage: React.FC = () => {
         linkTitle={linkToDelete?.title || ""}
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
+      />
+
+      {/* 7. 专属动态二维码定制弹窗 */}
+      <QrCodeDialog
+        open={qrDialogOpen}
+        onOpenChange={setQrDialogOpen}
+        link={linkForQr}
       />
     </PageContainer>
   );

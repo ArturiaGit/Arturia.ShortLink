@@ -123,7 +123,7 @@ const DEFAULT_DB: MockDatabase = {
         id: "link-2",
         domain: "go.arturia.io",
         slug: "spring26",
-        originalUrl: "https://arturia.io/events/2026-spring-sale?utm_source=twitter&utm_medium=social",
+        originalUrl: "https://arturia.io/events/2026-spring-sale?utm_source=twitter&utm_medium=social&utm_campaign=spring_sale&utm_term=saas&utm_content=hero_banner",
         fullShortUrl: "https://go.arturia.io/spring26",
         title: "2026 春季促销活动专属着陆页",
         description: "面向 Twitter 与社群渠道的春季大促推广落地页",
@@ -131,6 +131,7 @@ const DEFAULT_DB: MockDatabase = {
         hasPassword: false,
         pvCount: 4520,
         uvCount: 3180,
+        expiresAt: new Date(Date.now() + 16 * 3600 * 1000).toISOString(),
         createdAt: "2026-02-01T15:30:00Z",
         workspaceId: "ws-1",
         tags: ["活动", "营销"],
@@ -159,13 +160,31 @@ const DEFAULT_DB: MockDatabase = {
         fullShortUrl: "https://art.link/v2confidential",
         title: "内部架构演进机密白皮书 (密码保护)",
         description: "仅限内部核心成员访问的架构评估文档",
-        isEnabled: false,
+        isEnabled: true,
         hasPassword: true,
+        password: "arturia2026",
         pvCount: 210,
         uvCount: 95,
         createdAt: "2026-03-01T09:15:00Z",
         workspaceId: "ws-1",
         tags: ["内部", "机密"],
+      },
+      {
+        id: "link-6",
+        domain: "art.link",
+        slug: "blackfriday25",
+        originalUrl: "https://arturia.io/promotions/bf2025?utm_source=newsletter&utm_medium=email",
+        fullShortUrl: "https://art.link/blackfriday25",
+        title: "2025 黑五年度狂欢返场特惠 (已过期)",
+        description: "2025 年末黑五大促限时闪购着陆页",
+        isEnabled: false,
+        hasPassword: false,
+        pvCount: 8920,
+        uvCount: 6410,
+        expiresAt: "2025-12-01T00:00:00Z",
+        createdAt: "2025-11-20T10:00:00Z",
+        workspaceId: "ws-1",
+        tags: ["已过期", "促销"],
       },
     ],
     "ws-2": [
@@ -541,6 +560,8 @@ export class MockDB {
       originalUrl: string;
       title?: string;
       description?: string;
+      password?: string;
+      expiresAt?: string | null;
     }
   ): ShortLinkDto {
     const db = this.getDB();
@@ -581,6 +602,7 @@ export class MockDB {
       }
     }
 
+    const hasPassword = Boolean(params.password && params.password.trim().length > 0);
     const newLink: ShortLinkDto = {
       id: `link-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       domain,
@@ -590,7 +612,9 @@ export class MockDB {
       title,
       description: params.description?.trim() || "",
       isEnabled: true,
-      hasPassword: false,
+      hasPassword,
+      password: hasPassword ? params.password?.trim() : undefined,
+      expiresAt: params.expiresAt || null,
       pvCount: 0,
       uvCount: 0,
       createdAt: new Date().toISOString(),
@@ -610,6 +634,9 @@ export class MockDB {
       originalUrl?: string;
       title?: string;
       description?: string;
+      password?: string;
+      hasPassword?: boolean;
+      expiresAt?: string | null;
     }
   ): ShortLinkDto {
     const db = this.getDB();
@@ -633,6 +660,27 @@ export class MockDB {
 
     if (params.description !== undefined) {
       target.description = params.description.trim();
+    }
+
+    if (params.hasPassword !== undefined) {
+      target.hasPassword = params.hasPassword;
+      if (!params.hasPassword) {
+        target.password = undefined;
+      }
+    }
+
+    if (params.password !== undefined) {
+      if (params.password.trim().length > 0) {
+        target.hasPassword = true;
+        target.password = params.password.trim();
+      } else if (params.hasPassword === false) {
+        target.hasPassword = false;
+        target.password = undefined;
+      }
+    }
+
+    if (params.expiresAt !== undefined) {
+      target.expiresAt = params.expiresAt;
     }
 
     this.saveDB(db);
