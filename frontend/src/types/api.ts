@@ -57,6 +57,25 @@ export interface ShortLinkDto {
   tags?: string[];
 }
 
+export interface CreateShortLinkDto {
+  domain: string;
+  slug?: string;
+  originalUrl: string;
+  title?: string;
+  description?: string;
+}
+
+export interface UpdateShortLinkDto {
+  originalUrl?: string;
+  title?: string;
+  description?: string;
+}
+
+export interface CheckSlugResultDto {
+  available: boolean;
+  message?: string;
+}
+
 export interface OverviewStatsDto {
   totalLinks: number;
   totalPv: number;
