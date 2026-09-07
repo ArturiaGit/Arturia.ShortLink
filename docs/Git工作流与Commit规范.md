@@ -134,15 +134,21 @@ NanoID/Base62 生成器生成唯一字符码。
 
 ---
 
-## 5. 人机协同大阶段审阅与自动推送工作流 (Human-in-the-Loop Workflow)
+## 5. 人机协同大阶段审阅、PR 与自动合并工作流 (Human-in-the-Loop Workflow)
 
-鉴于本项目前端完全由 **Agent（AI 代理）** 负责构建，为了保障开发方向 100% 受控、杜绝失控狂奔，确立以下**大阶段验收闭环工作流**：
+鉴于本项目前端由 **Agent（AI 代理）** 负责构建，为了保障开发方向 100% 受控、杜绝失控狂奔，并使 GitHub 上的代码流转与 Pull Requests 审查链路清晰规范，确立以下**基于特性分支与 PR 的大阶段闭环工作流**：
 
 ```text
-[Agent 完成大阶段开发]
+[新阶段启动 / 前置基线同步与特性分支切出]
+  ├─ 检查本地工作区纯净 (git status --porcelain，脏工作区立即阻断)
+  ├─ 确保 main 分支为远端最新 (git checkout main && git pull --rebase origin main)
+  └─ 切出阶段特性分支 (git checkout -b feat/phase-X-<name>)
         │
         ▼
-[自动运行服务并调用浏览器唤起页面]
+[Agent 在特性分支中执行阶段开发与本地自测 (tsc / lint)]
+        │
+        ▼
+[本地运行 Vite 开发服务并自动调用浏览器唤起页面 (Start-Process)]
         │
         ▼
 [等待用户人工审查与体验]
@@ -151,7 +157,16 @@ NanoID/Base62 生成器生成唯一字符码。
    └── 若审查通过 (用户确认)
             │
             ▼
-   [Agent 自动执行规范 Commit & Push 至远程仓库]
+   [Agent 提交并推送特性分支至远程: git push -u origin feat/phase-X-<name>]
+            │
+            ▼
+   [Agent 自动创建 Pull Request: gh pr create --base main --head feat/phase-X-<name>]
+            │
+            ▼
+   [Agent 自动通过命令行执行 Squash 合并: gh pr merge --squash --delete-branch]
+            │
+            ▼
+   [切回 main 并拉取最新主干: git checkout main && git pull --rebase origin main]
             │
             ▼
    [同步在《功能开发清单.md》中勾选对应项 [x]]
@@ -162,22 +177,37 @@ NanoID/Base62 生成器生成唯一字符码。
 
 ### 5.1 核心执行规则
 
-1. **验收颗粒度标准**：
+1. **前置基线同步与特性分支切出 (Pre-flight Remote Sync & Branching)**：
+   * **阶段启动前检查**：在开始执行任何一个大阶段（Phase）的开发任务前，Agent 必须首先运行 `git status --porcelain` 检查工作区状态。
+   * **脏工作区一票否决**：若检测到本地存在未提交或未暂存的代码改动，**严禁执行分支切换与拉取**，必须立即原地停手并向人类开发者告警，由人类确认保存、丢弃或提交后再推进。
+   * **主干同步与分支切出**：切回 `main` 分支执行 `git pull --rebase origin main` 对齐远端最新代码；随后切出独立的阶段特性分支（例如阶段三切出 `git checkout -b feat/phase-3-link-engine`）。
+   * **冲突严苛避险与自动回滚**：若拉取时出现任何代码冲突（Rebase Conflict），**Agent 绝对严禁私自强行解决或强制覆盖**；必须立即自动执行 `git rebase --abort` 彻底恢复干净工作区，并原地停止操作向人类开发者发出告警，由人类在终端手动解决冲突。
+2. **验收颗粒度标准**：
    * 严格以《功能开发清单.md》中的**大阶段（Phase，共阶段一至阶段八）**为验收推进单元，避免过于零碎打断，确保每个阶段交付一个完整闭环的子系统。
-2. **浏览器自动唤起指令**：
+3. **浏览器自动唤起指令**：
    * 当 Agent 确认当前阶段所有代码与 Mock 跑通后，确保本地 Vite 开发服务器正常运行，并通过系统命令（如 Windows PowerShell: `Start-Process "http://localhost:5173"`）主动打开用户默认浏览器展现成果。
-3. **审阅确认机制**：
-   * 浏览器打开后，Agent 必须停下工具操作，输出该阶段的核心成果总结，并通过交互按钮等待用户的人工审阅反馈。
-4. **自动化 Git 提交与远程推送**：
-   * 用户明确同意后，Agent 自动执行：
+4. **审阅确认机制**：
+   * 浏览器打开后，Agent 必须停下工具操作，输出该阶段的核心成果总结，并通过交互等待用户的人工审阅反馈。
+5. **自动化提交、推送与创建 Pull Request**：
+   * 用户明确同意后，Agent 自动在特性分支执行：
      ```bash
      git add .
      git commit -m "<type>(<scope>): <清晰规范的阶段完成说明>"
-     git push origin <branch>
+     git push -u origin <feature-branch>
+     gh pr create --base main --head <feature-branch> --title "<type>(<scope>): <说明>" --body "<阶段成果与变更清单>"
      ```
-   * 提交完成后，Agent 自动将《功能开发清单.md》中本阶段所有完成任务标记为 `[x]`。
-5. **原地暂停铁律**：
-   * 推送完成后，Agent 必须**立即停止任何后续编码动作并原地暂停**，向用户报告当前阶段已安全归档，等待用户下发下一阶段的启动指令。
-6. **仓库初始化约束**：
+   * 此时在 GitHub 网页端的 **Pull requests** 标签页即可完整看到该合并请求。
+6. **自动命令行 Squash 合并与环境同步 (CLI Squash Merge)**：
+   * Agent 紧接着调用 GitHub CLI 自动执行 Squash 合并并清理远端临时分支：
+     ```bash
+     gh pr merge --squash --delete-branch
+     git checkout main
+     git pull --rebase origin main
+     git branch -d <feature-branch>
+     ```
+   * 合并完成后，Agent 自动将《功能开发清单.md》中本阶段所有完成任务标记为 `[x]`。
+7. **原地暂停铁律**：
+   * 合并与清单标记完成后，Agent 必须**立即停止任何后续编码动作并原地暂停**，向用户报告当前阶段已安全归档，等待用户下发下一阶段的启动指令。
+8. **仓库初始化约束**：
    * 在启动**阶段一（工程底座与 Mock 基础设施）**时，由 Agent 自动执行 `git init`，配置 `.gitignore`，完成首个全套规范文档的基线提交，并根据用户提供的远程仓库地址绑定 `remote origin`。
 
