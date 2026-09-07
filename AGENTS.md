@@ -63,11 +63,12 @@ Arturia.ShortLink/
 4. **零手搓原生 UI（严格遵循 shadcn/ui 规范）**：
    * 严禁在业务页面中写裸 `<button>`、`<input>`、`<select>` 等原生标签，必须统一使用 `@/components/ui/` 原子组件。
    * 严禁硬编码 HEX 颜色值（如 `bg-[#18181b]`），必须使用语义 Token 或 Zinc 色阶；破坏性操作必须弹 `AlertDialog` 拦截。
-5. **人机协同大阶段审阅与自动推送闭环（核心执行铁律）**：
+5. **人机协同大阶段审阅、PR 与自动合并闭环（核心执行铁律）**：
    * 严格以大阶段（Phase 1 至 Phase 8）为最小交付单元。
+   * **阶段启动前切出特性分支**：检查工作区纯净，`git checkout main && git pull --rebase origin main`；切出阶段独立分支 `feat/phase-X-<name>` 开发。
    * **每完成一个大阶段，Agent 必须通过系统命令主动唤起用户默认浏览器（`http://localhost:5173`）供人工审阅**。
    * **在未获得用户明确同意前，绝对严禁执行 `git commit` 或 `git push`**。
-   * 用户确认同意后，Agent 自动执行规范 Conventional Commit、推送至 Private 远程仓库并在清单中打勾 `[x]`，随后**必须立即原地暂停**，等待下一阶段指令。
+   * 用户确认同意后，Agent 自动执行规范 Conventional Commit、推送特性分支至 GitHub、使用 `gh pr create` 发起 Pull Request、再调用 `gh pr merge --squash --delete-branch` 完成自动合并，切回 `main` 同步并打勾清单 `[x]`，随后**必须立即原地暂停**，等待下一阶段指令。
 6. **语言与命名标准**：
    * 代码标识符（变量、函数、组件、文件名）严格全英文；代码注释中文；用户可见 UI 文案地道纯中文；`docs/` 下文档全中文。
 7. **版本管理与最小递增**：
@@ -77,16 +78,19 @@ Arturia.ShortLink/
 
 ## 4. Agent 日常标准开发流转步序 (Standard Operating Procedure)
 
-Agent 在承接并执行任一大阶段任务时，必须严格按以下 6 步推进：
+Agent 在承接并执行任一大阶段任务时，必须严格按以下 8 步推进：
 
 ```text
+步骤 0: 基线同步与分支切出 ──► 检查工作区纯净，main 分支 pull --rebase，切出 feat/phase-X-<name>
+    │
+    ▼
 步骤 1: 查阅清单 ──► 确认当前阶段目标，阅读对应必读规范
     │
     ▼
 步骤 2: 编码实现 ──► 仅在前端工程中开发页面、组件、样式与本地 Mock 数据
     │
     ▼
-步骤 3: 本地自测 ──► 运行 tsc --noEmit 与 npm run lint，确保 0 报错、无控制台异常
+步骤 3: 本地自测 ──► 运行 tsc -b 与 npm run lint，确保 0 报错、无控制台异常
     │
     ▼
 步骤 4: 唤起审阅 ──► 确保 Vite 运行，执行 Start-Process 自动打开浏览器供用户体验
@@ -94,9 +98,12 @@ Agent 在承接并执行任一大阶段任务时，必须严格按以下 6 步�
     ▼
 步骤 5: 人工确认 ──► 停下操作，汇报本阶段完成成果，等待用户确认
     │   ├── 若需修改 ──► 就地修改后重新打开浏览器审阅
-    │   └── 用户同意 ──► 自动执行 git add . && git commit && git push
+    │   └── 用户同意 ──► 进入自动提交与 PR 合并闭环
     ▼
-步骤 6: 原地暂停 ──► 清单勾选 [x]，Agent 立即停手暂停，等待下一阶段指令
+步骤 6: 提交/PR/自动合并 ──► push 特性分支 ──► gh pr create ──► gh pr merge --squash ──► 切回 main 同步
+    │
+    ▼
+步骤 7: 原地暂停 ──► 清单勾选 [x]，Agent 立即停手暂停，等待下一阶段指令
 ```
 
 ---
@@ -108,6 +115,19 @@ Agent 在承接并执行任一大阶段任务时，必须严格按以下 6 步�
 ```bash
 # 进入前端目录
 cd frontend
+
+# 检查工作区是否纯净 (开发前门禁)
+git status --porcelain
+
+# 确保 main 主干最新
+git checkout main
+git pull --rebase origin main
+
+# 切出阶段特性分支
+git checkout -b feat/phase-X-<name>
+
+# 冲突紧急回滚（拉取冲突时一键恢复现场并停手向人类报警）
+git rebase --abort
 
 # 安装依赖
 npm install
@@ -124,11 +144,14 @@ npx tsc -b
 # 生产环境打包验证 (门禁)
 npm run build
 
-# 自动创建 GitHub 私有仓库并绑定远程 (阶段一由 Agent 自动执行)
-gh repo create Arturia.ShortLink --private --source=. --remote=origin
-
-# 自动提交与推送范例
+# 自动提交并推送特性分支
 git add .
-git commit -m "feat(web): 完成阶段一工程底座与Mock基础设施"
-git push -u origin main
+git commit -m "feat(<scope>): <完成说明>"
+git push -u origin feat/phase-X-<name>
+
+# 自动创建 Pull Request 并合并 (GitHub CLI)
+gh pr create --base main --head feat/phase-X-<name> --title "..." --body "..."
+gh pr merge --squash --delete-branch
+git checkout main
+git pull --rebase origin main
 ```
