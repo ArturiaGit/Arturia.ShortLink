@@ -148,12 +148,77 @@ export async function mockAdapter(
 
   // Links
   if (url.includes("/links")) {
+    if (url.includes("/links/check-slug")) {
+      const parsedUrl = new URL(url, "http://localhost");
+      const domain = parsedUrl.searchParams.get("domain") || "art.link";
+      const slug = parsedUrl.searchParams.get("slug") || "";
+      const excludeId = parsedUrl.searchParams.get("excludeId") || undefined;
+      if (!slug) {
+        return successResponse({ available: true, message: "请输入别名" });
+      }
+      const isTaken = MockDB.isLinkSlugTaken(domain, slug, excludeId);
+      return successResponse({
+        available: !isTaken,
+        message: isTaken ? `别名 "${slug}" 在域名 ${domain} 下已被占用` : "该别名可用",
+      });
+    }
+
+    if (url.includes("/status") && (method === "patch" || method === "put")) {
+      const match = url.match(/\/links\/([^/]+)\/status/);
+      const linkId = match ? match[1] : "";
+      try {
+        const updated = MockDB.toggleLinkStatus(workspaceId, linkId);
+        return successResponse(updated, updated.isEnabled ? "短链已启用" : "短链已暂停访问");
+      } catch (err: any) {
+        return errorResponse(err.message || "切换状态失败");
+      }
+    }
+
+    if (method === "post") {
+      const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+      try {
+        const created = MockDB.createShortLink(workspaceId, {
+          domain: body?.domain || "art.link",
+          slug: body?.slug,
+          originalUrl: body?.originalUrl || "",
+          title: body?.title,
+          description: body?.description,
+        });
+        return successResponse(created, "短链创建成功");
+      } catch (err: any) {
+        return errorResponse(err.message || "创建短链失败");
+      }
+    }
+
+    if (method === "put") {
+      const match = url.match(/\/links\/([^/?]+)/);
+      const linkId = match ? match[1] : "";
+      const body = typeof config.data === "string" ? JSON.parse(config.data) : config.data;
+      try {
+        const updated = MockDB.updateShortLink(workspaceId, linkId, body);
+        return successResponse(updated, "短链已更新成功");
+      } catch (err: any) {
+        return errorResponse(err.message || "更新短链失败");
+      }
+    }
+
+    if (method === "delete") {
+      const match = url.match(/\/links\/([^/?]+)/);
+      const linkId = match ? match[1] : "";
+      try {
+        MockDB.deleteShortLink(workspaceId, linkId);
+        return successResponse(null, "短链已成功删除");
+      } catch (err: any) {
+        return errorResponse(err.message || "删除短链失败");
+      }
+    }
+
     const links = MockDB.getLinks(workspaceId);
     return successResponse({
       items: links,
       total: links.length,
       page: 1,
-      pageSize: 20,
+      pageSize: 50,
       totalPages: 1,
     });
   }

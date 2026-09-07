@@ -506,6 +506,164 @@ export class MockDB {
     return db.links[workspaceId] || [];
   }
 
+  static generateBase62Slug(length = 6): string {
+    const chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  static isLinkSlugTaken(domain: string, slug: string, excludeLinkId?: string): boolean {
+    const db = this.getDB();
+    const cleanDomain = domain.trim().toLowerCase();
+    const cleanSlug = slug.trim().toLowerCase();
+
+    for (const wsId of Object.keys(db.links)) {
+      const list = db.links[wsId] || [];
+      const match = list.find(
+        (l) =>
+          l.id !== excludeLinkId &&
+          l.domain.toLowerCase() === cleanDomain &&
+          l.slug.toLowerCase() === cleanSlug
+      );
+      if (match) return true;
+    }
+    return false;
+  }
+
+  static createShortLink(
+    workspaceId: string,
+    params: {
+      domain: string;
+      slug?: string;
+      originalUrl: string;
+      title?: string;
+      description?: string;
+    }
+  ): ShortLinkDto {
+    const db = this.getDB();
+    if (!db.links[workspaceId]) {
+      db.links[workspaceId] = [];
+    }
+
+    const url = params.originalUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error("链接必须以 http:// 或 https:// 开头");
+    }
+
+    const domain = params.domain.trim();
+    let slug = params.slug?.trim() || "";
+
+    if (slug) {
+      if (!/^[a-zA-Z0-9_-]{3,32}$/.test(slug)) {
+        throw new Error("短码仅支持 3~32 位字母、数字、短横线及下划线");
+      }
+      if (this.isLinkSlugTaken(domain, slug)) {
+        throw new Error(`别名 "${slug}" 在域名 ${domain} 下已被占用`);
+      }
+    } else {
+      let attempts = 0;
+      do {
+        slug = this.generateBase62Slug(6);
+        attempts++;
+      } while (this.isLinkSlugTaken(domain, slug) && attempts < 10);
+    }
+
+    let title = params.title?.trim();
+    if (!title) {
+      try {
+        const u = new URL(url);
+        title = `${u.hostname}${u.pathname.length > 1 && u.pathname !== "/" ? u.pathname : ""}`;
+      } catch {
+        title = `链接 /${slug}`;
+      }
+    }
+
+    const newLink: ShortLinkDto = {
+      id: `link-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      domain,
+      slug,
+      originalUrl: url,
+      fullShortUrl: `https://${domain}/${slug}`,
+      title,
+      description: params.description?.trim() || "",
+      isEnabled: true,
+      hasPassword: false,
+      pvCount: 0,
+      uvCount: 0,
+      createdAt: new Date().toISOString(),
+      workspaceId,
+      tags: [],
+    };
+
+    db.links[workspaceId].unshift(newLink);
+    this.saveDB(db);
+    return newLink;
+  }
+
+  static updateShortLink(
+    workspaceId: string,
+    linkId: string,
+    params: {
+      originalUrl?: string;
+      title?: string;
+      description?: string;
+    }
+  ): ShortLinkDto {
+    const db = this.getDB();
+    const list = db.links[workspaceId] || [];
+    const target = list.find((l) => l.id === linkId);
+    if (!target) {
+      throw new Error("短链不存在或已被删除");
+    }
+
+    if (params.originalUrl !== undefined) {
+      const url = params.originalUrl.trim();
+      if (!/^https?:\/\//i.test(url)) {
+        throw new Error("链接必须以 http:// 或 https:// 开头");
+      }
+      target.originalUrl = url;
+    }
+
+    if (params.title !== undefined) {
+      target.title = params.title.trim() || target.title;
+    }
+
+    if (params.description !== undefined) {
+      target.description = params.description.trim();
+    }
+
+    this.saveDB(db);
+    return target;
+  }
+
+  static toggleLinkStatus(workspaceId: string, linkId: string): ShortLinkDto {
+    const db = this.getDB();
+    const list = db.links[workspaceId] || [];
+    const target = list.find((l) => l.id === linkId);
+    if (!target) {
+      throw new Error("短链不存在或已被删除");
+    }
+
+    target.isEnabled = !target.isEnabled;
+    this.saveDB(db);
+    return target;
+  }
+
+  static deleteShortLink(workspaceId: string, linkId: string): void {
+    const db = this.getDB();
+    const list = db.links[workspaceId] || [];
+    const index = list.findIndex((l) => l.id === linkId);
+    if (index === -1) {
+      throw new Error("短链不存在或已被删除");
+    }
+
+    list.splice(index, 1);
+    this.saveDB(db);
+  }
+
   static getOverviewStats(workspaceId: string): OverviewStatsDto {
     const links = this.getLinks(workspaceId);
     const domains = this.getDomains(workspaceId);
