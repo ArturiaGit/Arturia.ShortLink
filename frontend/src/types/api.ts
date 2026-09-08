@@ -55,6 +55,9 @@ export interface ShortLinkDto {
   expiresAt?: string | null;
   createdAt: string;
   workspaceId: string;
+  createdById?: string;
+  creatorName?: string;
+  creatorAvatar?: string;
   tags?: string[];
 }
 

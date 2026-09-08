@@ -117,6 +117,9 @@ const DEFAULT_DB: MockDatabase = {
         uvCount: 9860,
         createdAt: "2026-01-05T12:00:00Z",
         workspaceId: "ws-1",
+        createdById: "usr-admin-1",
+        creatorName: "Arturia 管理员",
+        creatorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         tags: ["开源", "主仓库"],
       },
       {
@@ -134,6 +137,9 @@ const DEFAULT_DB: MockDatabase = {
         expiresAt: new Date(Date.now() + 16 * 3600 * 1000).toISOString(),
         createdAt: "2026-02-01T15:30:00Z",
         workspaceId: "ws-1",
+        createdById: "usr-admin-1",
+        creatorName: "Arturia 管理员",
+        creatorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         tags: ["活动", "营销"],
       },
       {
@@ -150,6 +156,9 @@ const DEFAULT_DB: MockDatabase = {
         uvCount: 1220,
         createdAt: "2026-02-10T11:20:00Z",
         workspaceId: "ws-1",
+        createdById: "usr-admin-1",
+        creatorName: "Arturia 管理员",
+        creatorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         tags: ["文档"],
       },
       {
@@ -167,6 +176,9 @@ const DEFAULT_DB: MockDatabase = {
         uvCount: 95,
         createdAt: "2026-03-01T09:15:00Z",
         workspaceId: "ws-1",
+        createdById: "usr-admin-1",
+        creatorName: "Arturia 管理员",
+        creatorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         tags: ["内部", "机密"],
       },
       {
@@ -184,6 +196,9 @@ const DEFAULT_DB: MockDatabase = {
         expiresAt: "2025-12-01T00:00:00Z",
         createdAt: "2025-11-20T10:00:00Z",
         workspaceId: "ws-1",
+        createdById: "usr-member-2",
+        creatorName: "张三 (市场专员)",
+        creatorAvatar: "https://api.dicebear.com/7.x/initials/svg?seed=zhangsan",
         tags: ["已过期", "促销"],
       },
     ],
@@ -202,6 +217,9 @@ const DEFAULT_DB: MockDatabase = {
         uvCount: 640,
         createdAt: "2026-02-22T16:00:00Z",
         workspaceId: "ws-2",
+        createdById: "usr-admin-1",
+        creatorName: "Arturia 管理员",
+        creatorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
         tags: ["海外", "公测"],
       },
     ],
@@ -295,6 +313,25 @@ export class MockDB {
       if (data) {
         const parsed = JSON.parse(data);
         if (parsed && parsed.workspaces && parsed.users) {
+          // 自动为已有历史本地缓存数据打补丁补齐创建人字段
+          let migrated = false;
+          if (parsed.links) {
+            for (const wsId of Object.keys(parsed.links)) {
+              for (const link of parsed.links[wsId]) {
+                if (!link.creatorName) {
+                  link.createdById = link.createdById || "usr-admin-1";
+                  link.creatorName =
+                    link.createdById === "usr-member-2"
+                      ? "张三 (市场专员)"
+                      : "Arturia 管理员";
+                  migrated = true;
+                }
+              }
+            }
+          }
+          if (migrated) {
+            this.saveDB(parsed);
+          }
           return parsed;
         }
       }
@@ -603,6 +640,7 @@ export class MockDB {
     }
 
     const hasPassword = Boolean(params.password && params.password.trim().length > 0);
+    const currentUser = db.currentUser;
     const newLink: ShortLinkDto = {
       id: `link-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       domain,
@@ -619,6 +657,9 @@ export class MockDB {
       uvCount: 0,
       createdAt: new Date().toISOString(),
       workspaceId,
+      createdById: currentUser?.id || "usr-admin-1",
+      creatorName: currentUser?.nickname || "Arturia 管理员",
+      creatorAvatar: currentUser?.avatarUrl,
       tags: [],
     };
 
