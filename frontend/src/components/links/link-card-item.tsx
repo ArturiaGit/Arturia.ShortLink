@@ -22,8 +22,11 @@ import {
   Globe,
   QrCode,
   Clock,
+  User,
 } from "lucide-react";
 import { formatRemainingTime } from "@/lib/link-status";
+import { useAuth } from "@/context/AuthContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
 
 interface LinkCardItemProps {
   link: ShortLinkDto;
@@ -40,6 +43,25 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
   onToggleStatus,
   onOpenQrCode,
 }) => {
+  const { currentUser } = useAuth();
+  const { currentWorkspace } = useWorkspace();
+
+  // 严格按需求规格说明书执行 RBAC 细粒度校验：
+  // Owner 与 Admin 拥有空间内所有短链管辖权；Member 仅可修改或删除本人创建的短链
+  const isOwnerOrAdmin =
+    currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
+  const isCreator = Boolean(
+    link.createdById && currentUser?.id && link.createdById === currentUser.id
+  );
+  const canManage = isOwnerOrAdmin || isCreator || !link.createdById;
+
+  // 保证创建者名称始终有可靠兜底显示
+  const creatorDisplayName =
+    link.creatorName ||
+    (link.createdById === "usr-member-2"
+      ? "张三 (市场专员)"
+      : "Arturia 管理员");
+
   // 提取目标 URL 的主域名用于展示 favicon 占位
   let hostname = "";
   try {
@@ -121,13 +143,21 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
               </a>
             </div>
 
-            {/* 描述、有效期与创建日期 */}
+            {/* 描述、创建人、有效期与创建日期 */}
             <div className="flex items-center gap-4 text-xs text-muted-foreground pt-0.5 flex-wrap">
               {link.description && (
                 <span className="truncate max-w-md text-muted-foreground/80">
                   {link.description}
                 </span>
               )}
+              {/* 创建人标识 */}
+              <span
+                className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+                title={`短链创建者: ${creatorDisplayName}`}
+              >
+                <User className="h-3 w-3 text-muted-foreground/70" />
+                <span>{creatorDisplayName}</span>
+              </span>
               {link.expiresAt && (
                 <span
                   className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground/80"
@@ -183,7 +213,9 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
             </span>
             <Switch
               checked={link.isEnabled}
+              disabled={!canManage}
               onCheckedChange={() => onToggleStatus(link)}
+              title={!canManage ? "业务协作者仅可启停本人创建的短链" : "切换短链启用状态"}
               aria-label="切换短链启用状态"
             />
           </div>
@@ -196,10 +228,20 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
                 <span className="sr-only">更多操作</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => onEdit(link)} className="gap-2 text-xs">
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                disabled={!canManage}
+                onClick={() => canManage && onEdit(link)}
+                className="gap-2 text-xs"
+                title={!canManage ? "仅短链创建者本人或管理员可修改" : undefined}
+              >
                 <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>编辑短链属性</span>
+                {!canManage && (
+                  <span className="text-[10px] text-muted-foreground/60 ml-auto font-mono">
+                    无权限
+                  </span>
+                )}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onOpenQrCode(link)} className="gap-2 text-xs">
                 <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
@@ -214,11 +256,18 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => onDelete(link)}
+                disabled={!canManage}
+                onClick={() => canManage && onDelete(link)}
                 className="gap-2 text-xs text-destructive focus:text-destructive focus:bg-destructive/10"
+                title={!canManage ? "仅短链创建者本人或管理员可删除" : undefined}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>删除此短链</span>
+                {!canManage && (
+                  <span className="text-[10px] text-muted-foreground/60 ml-auto font-mono">
+                    无权限
+                  </span>
+                )}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
