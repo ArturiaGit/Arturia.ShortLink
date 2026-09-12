@@ -224,6 +224,31 @@ export async function mockAdapter(
   }
 
   // Analytics
+  const queryParams = config.params || {};
+  const urlSearchParams = new URLSearchParams(url.includes("?") ? url.split("?")[1] : "");
+  const range = (queryParams.range || urlSearchParams.get("range") || "30d") as any;
+  const linkId = queryParams.linkId || urlSearchParams.get("linkId") || undefined;
+
+  if (url.includes("/analytics/summary")) {
+    return successResponse(MockDB.getAnalyticsSummary(workspaceId, linkId));
+  }
+
+  if (url.includes("/analytics/timeseries")) {
+    return successResponse(MockDB.getAnalyticsTimeseries(workspaceId, range, linkId));
+  }
+
+  if (url.includes("/analytics/devices")) {
+    return successResponse(MockDB.getAnalyticsDevices(workspaceId, range, linkId));
+  }
+
+  if (url.includes("/analytics/referrers")) {
+    return successResponse(MockDB.getAnalyticsReferrers(workspaceId, range, linkId));
+  }
+
+  if (url.includes("/analytics/countries")) {
+    return successResponse(MockDB.getAnalyticsCountries(workspaceId, range, linkId));
+  }
+
   if (url.includes("/analytics/overview") || url.includes("/stats/overview")) {
     return successResponse(MockDB.getOverviewStats(workspaceId));
   }

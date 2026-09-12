@@ -112,3 +112,44 @@ export interface ApiKeyDto {
   createdAt: string;
   lastUsedAt?: string;
 }
+
+// 阶段五：深度数据分析中心 DTO
+export type TimeRange = '24h' | '7d' | '30d' | '90d';
+
+export interface AnalyticsSummaryDto {
+  totalClicks: number;
+  totalUniqueVisitors: number;
+  activeLinksCount: number;
+  todayClicks: number;
+  clicksGrowthRate: number;
+}
+
+export interface TimeseriesPointDto {
+  timestamp: string;
+  clicks: number;
+  uniqueVisitors: number;
+}
+
+export interface DeviceItemDto {
+  name: string;
+  value: number;
+}
+
+export interface DeviceStatsDto {
+  deviceTypes: DeviceItemDto[];
+  os: DeviceItemDto[];
+  browsers: DeviceItemDto[];
+}
+
+export interface ReferrerStatsDto {
+  name: string;
+  clicks: number;
+  percentage: number;
+}
+
+export interface CountryStatsDto {
+  country: string;
+  countryCode: string;
+  clicks: number;
+  percentage: number;
+}

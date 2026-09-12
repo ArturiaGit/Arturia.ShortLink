@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { ShortLinkDto } from "@/types/api";
 import { CopyButton } from "@/components/shared/copy-button";
 import { LinkStatusBadge } from "@/components/shared/link-status-badge";
@@ -23,6 +24,7 @@ import {
   QrCode,
   Clock,
   User,
+  BarChart2,
 } from "lucide-react";
 import { formatRemainingTime } from "@/lib/link-status";
 import { useAuth } from "@/context/AuthContext";
@@ -43,6 +45,7 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
   onToggleStatus,
   onOpenQrCode,
 }) => {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { currentWorkspace } = useWorkspace();
 
@@ -115,6 +118,16 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
                 <QrCode className="h-3.5 w-3.5" />
                 <span className="sr-only">二维码</span>
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate(`/analytics?linkId=${link.id}`)}
+                className="h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-muted"
+                title="查看该短链独立数据分析看板"
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                <span className="sr-only">数据分析</span>
+              </Button>
               <LinkStatusBadge
                 isEnabled={link.isEnabled}
                 hasPassword={link.hasPassword}
@@ -179,12 +192,15 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
 
         {/* 右侧指标数据与交互操作区 */}
         <div className="flex items-center justify-between lg:justify-end gap-3 sm:gap-5 border-t lg:border-t-0 pt-3 lg:pt-0 border-border/60 shrink-0">
-          {/* 数据指标胶囊 */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* 数据指标胶囊 (支持点击直达分析下钻) */}
+          <div
+            onClick={() => navigate(`/analytics?linkId=${link.id}`)}
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group"
+            title="点击进入该短链专属时序下钻分析"
+          >
             {/* PV 点击量 */}
             <div
-              className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground"
-              title="页面访问总量 (PV)"
+              className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/30 group-hover:border-primary/50 group-hover:bg-muted/60 transition-all px-2.5 py-1.5 text-xs text-muted-foreground"
             >
               <MousePointerClick className="h-3.5 w-3.5 text-blue-500" />
               <span className="font-semibold text-foreground font-mono tabular-nums">
@@ -195,8 +211,7 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
 
             {/* UV 独立访客 */}
             <div
-              className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground"
-              title="独立访客总数 (UV，IP+UA去重)"
+              className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/30 group-hover:border-emerald-500/50 group-hover:bg-muted/60 transition-all px-2.5 py-1.5 text-xs text-muted-foreground"
             >
               <Users className="h-3.5 w-3.5 text-emerald-500" />
               <span className="font-semibold text-foreground font-mono tabular-nums">
@@ -246,6 +261,13 @@ export const LinkCardItem: React.FC<LinkCardItemProps> = ({
               <DropdownMenuItem onClick={() => onOpenQrCode(link)} className="gap-2 text-xs">
                 <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
                 <span>定制专属二维码</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate(`/analytics?linkId=${link.id}`)}
+                className="gap-2 text-xs"
+              >
+                <BarChart2 className="h-3.5 w-3.5 text-primary" />
+                <span>专属数据分析看板</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => window.open(link.originalUrl, "_blank")}

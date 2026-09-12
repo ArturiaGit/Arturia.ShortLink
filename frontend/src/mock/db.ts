@@ -1,4 +1,18 @@
-import { UserDto, WorkspaceDto, DomainDto, ShortLinkDto, TeamMemberDto, ApiKeyDto, OverviewStatsDto } from "@/types/api";
+import {
+  UserDto,
+  WorkspaceDto,
+  DomainDto,
+  ShortLinkDto,
+  TeamMemberDto,
+  ApiKeyDto,
+  OverviewStatsDto,
+  AnalyticsSummaryDto,
+  TimeseriesPointDto,
+  DeviceStatsDto,
+  ReferrerStatsDto,
+  CountryStatsDto,
+  TimeRange,
+} from "@/types/api";
 
 export interface MockUserAccount extends UserDto {
   password?: string;
@@ -842,5 +856,164 @@ export class MockDB {
 
     db.teamMembers[workspaceId] = members.filter((m) => m.id !== memberId);
     this.saveDB(db);
+  }
+
+  // ==========================================
+  // 阶段五：深度数据分析中心 (Analytics Engine)
+  // ==========================================
+
+  static getAnalyticsSummary(workspaceId: string, linkId?: string): AnalyticsSummaryDto {
+    const links = this.getLinks(workspaceId);
+    if (linkId) {
+      const target = links.find((l) => l.id === linkId);
+      const totalClicks = target?.pvCount ?? 0;
+      const totalUniqueVisitors = target?.uvCount ?? 0;
+      return {
+        totalClicks,
+        totalUniqueVisitors,
+        activeLinksCount: target?.isEnabled ? 1 : 0,
+        todayClicks: Math.round(totalClicks * 0.082),
+        clicksGrowthRate: 19.4,
+      };
+    }
+
+    const totalClicks = links.reduce((sum, l) => sum + l.pvCount, 0);
+    const totalUniqueVisitors = links.reduce((sum, l) => sum + l.uvCount, 0);
+    const activeLinksCount = links.filter((l) => l.isEnabled).length;
+
+    return {
+      totalClicks,
+      totalUniqueVisitors,
+      activeLinksCount,
+      todayClicks: Math.round(totalClicks * 0.076),
+      clicksGrowthRate: 15.8,
+    };
+  }
+
+  static getAnalyticsTimeseries(
+    workspaceId: string,
+    range: TimeRange = "30d",
+    linkId?: string
+  ): TimeseriesPointDto[] {
+    const summary = this.getAnalyticsSummary(workspaceId, linkId);
+    const baseTotalPv = Math.max(summary.totalClicks, 120);
+
+    const now = new Date("2026-09-12T08:00:00Z");
+
+    if (range === "24h") {
+      const points: TimeseriesPointDto[] = [];
+      const hourlyWeights = [
+        0.18, 0.12, 0.08, 0.05, 0.04, 0.06, 0.15, 0.45,
+        0.85, 1.25, 1.42, 1.38, 1.15, 1.20, 1.35, 1.48,
+        1.55, 1.40, 1.22, 1.36, 1.58, 1.45, 1.05, 0.52
+      ];
+      const sumWeights = hourlyWeights.reduce((a, b) => a + b, 0);
+      const dayClicks = Math.max(summary.todayClicks, 48);
+
+      for (let h = 0; h < 24; h++) {
+        const hourTime = new Date(now.getTime() - (23 - h) * 3600 * 1000);
+        const timeLabel = `${String(hourTime.getHours()).padStart(2, "0")}:00`;
+        const weight = hourlyWeights[hourTime.getHours()];
+        const clicks = Math.max(1, Math.round((dayClicks / sumWeights) * weight * (0.95 + (h % 3) * 0.05)));
+        const uniqueVisitors = Math.max(1, Math.round(clicks * (0.65 + ((h % 5) * 0.02))));
+
+        points.push({
+          timestamp: timeLabel,
+          clicks,
+          uniqueVisitors,
+        });
+      }
+      return points;
+    }
+
+    const daysCount = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+    const points: TimeseriesPointDto[] = [];
+    const averageDailyPv = Math.max(10, Math.round(baseTotalPv / (daysCount * 1.3)));
+
+    for (let i = daysCount - 1; i >= 0; i--) {
+      const dayTime = new Date(now.getTime() - i * 86400 * 1000);
+      const month = String(dayTime.getMonth() + 1).padStart(2, "0");
+      const day = String(dayTime.getDate()).padStart(2, "0");
+      const timeLabel = `${month}-${day}`;
+
+      // 周期正弦波形与周末轻微回落自然拟真
+      const dayOfWeek = dayTime.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const weekendFactor = isWeekend ? 0.78 : 1.08;
+      const wave = Math.sin((i / daysCount) * Math.PI * 4) * 0.22;
+      const growthFactor = 0.85 + ((daysCount - i) / daysCount) * 0.35;
+
+      const clicks = Math.max(2, Math.round(averageDailyPv * (1 + wave) * weekendFactor * growthFactor));
+      const uvRatio = 0.62 + (i % 7) * 0.018;
+      const uniqueVisitors = Math.max(1, Math.round(clicks * uvRatio));
+
+      points.push({
+        timestamp: timeLabel,
+        clicks,
+        uniqueVisitors,
+      });
+    }
+
+    return points;
+  }
+
+  static getAnalyticsDevices(
+    _workspaceId: string,
+    _range: TimeRange = "30d",
+    _linkId?: string
+  ): DeviceStatsDto {
+    return {
+      deviceTypes: [
+        { name: "桌面端", value: 62.5 },
+        { name: "移动端", value: 34.0 },
+        { name: "平板端", value: 3.5 },
+      ],
+      os: [
+        { name: "Windows", value: 45.2 },
+        { name: "macOS", value: 26.8 },
+        { name: "iOS", value: 15.3 },
+        { name: "Android", value: 12.7 },
+      ],
+      browsers: [
+        { name: "Chrome", value: 68.4 },
+        { name: "Safari", value: 18.2 },
+        { name: "Edge", value: 9.1 },
+        { name: "Firefox", value: 4.3 },
+      ],
+    };
+  }
+
+  static getAnalyticsReferrers(
+    workspaceId: string,
+    _range: TimeRange = "30d",
+    linkId?: string
+  ): ReferrerStatsDto[] {
+    const summary = this.getAnalyticsSummary(workspaceId, linkId);
+    const total = Math.max(summary.totalClicks, 100);
+
+    return [
+      { name: "直接访问 (Direct)", clicks: Math.round(total * 0.419), percentage: 41.9 },
+      { name: "GitHub", clicks: Math.round(total * 0.231), percentage: 23.1 },
+      { name: "Twitter / X", clicks: Math.round(total * 0.159), percentage: 15.9 },
+      { name: "微信公众号/群聊", clicks: Math.round(total * 0.124), percentage: 12.4 },
+      { name: "Google 搜索", clicks: Math.round(total * 0.067), percentage: 6.7 },
+    ];
+  }
+
+  static getAnalyticsCountries(
+    workspaceId: string,
+    _range: TimeRange = "30d",
+    linkId?: string
+  ): CountryStatsDto[] {
+    const summary = this.getAnalyticsSummary(workspaceId, linkId);
+    const total = Math.max(summary.totalClicks, 100);
+
+    return [
+      { country: "中国", countryCode: "CN", clicks: Math.round(total * 0.636), percentage: 63.6 },
+      { country: "美国", countryCode: "US", clicks: Math.round(total * 0.195), percentage: 19.5 },
+      { country: "日本", countryCode: "JP", clicks: Math.round(total * 0.072), percentage: 7.2 },
+      { country: "新加坡", countryCode: "SG", clicks: Math.round(total * 0.050), percentage: 5.0 },
+      { country: "其他地区", countryCode: "OTHER", clicks: Math.round(total * 0.047), percentage: 4.7 },
+    ];
   }
 }
