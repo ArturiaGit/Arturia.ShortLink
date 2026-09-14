@@ -33,11 +33,35 @@ export interface WorkspaceDto {
 export interface DomainDto {
   id: string;
   domain: string;
+  isPrimary?: boolean;
   isSystem: boolean;
   isVerified: boolean;
   cnameTarget?: string;
+  verificationCode?: string | null;
+  sslStatus?: 'Active' | 'Pending' | 'Error';
+  linkCount?: number;
   createdAt: string;
 }
+
+export interface CreateDomainRequest {
+  domain: string;
+}
+
+export interface VerifyDomainResult {
+  success: boolean;
+  isVerified: boolean;
+  sslStatus: 'Active' | 'Pending' | 'Error';
+  message: string;
+}
+
+export interface DomainStatsDto {
+  total: number;
+  activeCount: number;
+  pendingCount: number;
+  primaryDomain: string;
+  maxDomains: number;
+}
+
 
 export interface ShortLinkDto {
   id: string;

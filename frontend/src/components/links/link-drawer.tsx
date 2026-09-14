@@ -133,7 +133,9 @@ export const LinkDrawer: React.FC<LinkDrawerProps> = ({
         }
       } else {
         // 新建模式重置
-        const defaultDom = domains.length > 0 ? domains[0].domain : "art.link";
+        const defaultDom =
+          domains.find((d) => d.isPrimary)?.domain ||
+          (domains.length > 0 ? domains[0].domain : "art.link");
         setDomain(defaultDom);
         setOriginalUrl("");
         setSlug("");
@@ -342,7 +344,19 @@ export const LinkDrawer: React.FC<LinkDrawerProps> = ({
                         value={d.domain}
                         className="font-mono text-sm"
                       >
-                        {d.domain} {d.isSystem && "(默认系统域名)"}
+                        <div className="flex items-center gap-2">
+                          <span>{d.domain}</span>
+                          {d.isPrimary && (
+                            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-sans font-medium">
+                              空间主域名
+                            </span>
+                          )}
+                          {d.isSystem && (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-sans">
+                              系统
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -143,7 +143,66 @@ export async function mockAdapter(
 
   // Domains
   if (url.includes("/domains")) {
-    return successResponse(MockDB.getDomains(workspaceId));
+    const parsedUrl = new URL(url, "http://localhost");
+    const pathname = parsedUrl.pathname;
+
+    // GET /domains/stats
+    if (method === "get" && pathname.endsWith("/domains/stats")) {
+      return successResponse(MockDB.getDomainStats(workspaceId));
+    }
+
+    // GET /domains
+    if (method === "get" && (pathname.endsWith("/domains") || pathname.endsWith("/domains/"))) {
+      return successResponse(MockDB.getDomains(workspaceId));
+    }
+
+    // POST /domains/:id/verify
+    if (method === "post" && pathname.includes("/verify")) {
+      const match = pathname.match(/\/domains\/([^\/]+)\/verify/);
+      const domainId = match ? match[1] : "";
+      const simulateFail = parsedUrl.searchParams.get("simulateFail") === "true";
+      try {
+        const updated = MockDB.verifyDomain(workspaceId, domainId, simulateFail);
+        return successResponse(updated, "域名 DNS 解析验证通过！已成功激活独立短链服务");
+      } catch (err: any) {
+        return errorResponse(err.message || "DNS 验证失败");
+      }
+    }
+
+    // POST /domains/:id/primary
+    if (method === "post" && pathname.includes("/primary")) {
+      const match = pathname.match(/\/domains\/([^\/]+)\/primary/);
+      const domainId = match ? match[1] : "";
+      try {
+        const updated = MockDB.setPrimaryDomain(workspaceId, domainId);
+        return successResponse(updated, `已成功将 "${updated.domain}" 设为当前空间默认主域名`);
+      } catch (err: any) {
+        return errorResponse(err.message || "设置主域名失败");
+      }
+    }
+
+    // POST /domains (添加新域名)
+    if (method === "post") {
+      const body = typeof config.data === "string" ? JSON.parse(config.data || "{}") : config.data;
+      try {
+        const newDom = MockDB.addDomain(workspaceId, body?.domain || "");
+        return successResponse(newDom, "自定义域名添加成功，请前往 DNS 服务商配置解析记录");
+      } catch (err: any) {
+        return errorResponse(err.message || "添加域名失败");
+      }
+    }
+
+    // DELETE /domains/:id
+    if (method === "delete") {
+      const match = pathname.match(/\/domains\/([^\/]+)/);
+      const domainId = match ? match[1] : "";
+      try {
+        const res = MockDB.deleteDomain(workspaceId, domainId);
+        return successResponse(res, res.message);
+      } catch (err: any) {
+        return errorResponse(err.message || "删除域名失败");
+      }
+    }
   }
 
   // Links

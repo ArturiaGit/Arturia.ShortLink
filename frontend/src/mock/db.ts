@@ -12,6 +12,7 @@ import {
   ReferrerStatsDto,
   CountryStatsDto,
   TimeRange,
+  DomainStatsDto,
 } from "@/types/api";
 
 export interface MockUserAccount extends UserDto {
@@ -84,16 +85,20 @@ const DEFAULT_DB: MockDatabase = {
       {
         id: "dom-1",
         domain: "art.link",
+        isPrimary: true,
         isSystem: true,
         isVerified: true,
+        sslStatus: "Active",
         createdAt: "2026-01-01T08:00:00Z",
       },
       {
         id: "dom-2",
         domain: "go.arturia.io",
+        isPrimary: false,
         isSystem: false,
         isVerified: true,
         cnameTarget: "cname.art.link",
+        sslStatus: "Active",
         createdAt: "2026-01-10T14:20:00Z",
       },
     ],
@@ -101,16 +106,20 @@ const DEFAULT_DB: MockDatabase = {
       {
         id: "dom-1",
         domain: "art.link",
+        isPrimary: true,
         isSystem: true,
         isVerified: true,
+        sslStatus: "Active",
         createdAt: "2026-01-01T08:00:00Z",
       },
       {
         id: "dom-3",
         domain: "growth.arturia.com",
+        isPrimary: false,
         isSystem: false,
         isVerified: false,
         cnameTarget: "cname.art.link",
+        sslStatus: "Pending",
         createdAt: "2026-02-20T09:00:00Z",
       },
     ],
@@ -459,8 +468,10 @@ export class MockDB {
       {
         id: `dom-${Date.now()}`,
         domain: "art.link",
+        isPrimary: true,
         isSystem: true,
         isVerified: true,
+        sslStatus: "Active",
         createdAt: new Date().toISOString(),
       },
     ];
@@ -536,8 +547,10 @@ export class MockDB {
       {
         id: `dom-${Date.now()}`,
         domain: "art.link",
+        isPrimary: true,
         isSystem: true,
         isVerified: true,
+        sslStatus: "Active",
         createdAt: new Date().toISOString(),
       },
     ];
@@ -560,15 +573,159 @@ export class MockDB {
 
   static getDomains(workspaceId: string): DomainDto[] {
     const db = this.getDB();
-    return db.domains[workspaceId] || [
+    const domains = db.domains[workspaceId] || [
       {
         id: "dom-1",
         domain: "art.link",
+        isPrimary: true,
         isSystem: true,
         isVerified: true,
+        sslStatus: "Active",
         createdAt: "2026-01-01T08:00:00Z",
       },
     ];
+    const links = db.links[workspaceId] || [];
+    return domains.map((d) => ({
+      ...d,
+      linkCount: links.filter((l) => l.domain.toLowerCase() === d.domain.toLowerCase()).length,
+    }));
+  }
+
+  static getDomainStats(workspaceId: string): DomainStatsDto {
+    const domains = this.getDomains(workspaceId);
+    const activeCount = domains.filter((d) => d.isVerified).length;
+    const pendingCount = domains.filter((d) => !d.isVerified).length;
+    const primary = domains.find((d) => d.isPrimary) || domains[0];
+    return {
+      total: domains.length,
+      activeCount,
+      pendingCount,
+      primaryDomain: primary ? primary.domain : "art.link",
+      maxDomains: 5,
+    };
+  }
+
+  static addDomain(workspaceId: string, rawDomain: string): DomainDto {
+    let clean = (rawDomain || "").trim().toLowerCase();
+    clean = clean.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+
+    const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    if (!domainRegex.test(clean)) {
+      throw new Error("请输入格式合法的域名（例如：go.mybrand.com 或 link.brand.cn）");
+    }
+
+    if (clean === "art.link") {
+      throw new Error("art.link 为系统保留共享域名，无需重复绑定");
+    }
+
+    const db = this.getDB();
+    if (!db.domains[workspaceId]) {
+      db.domains[workspaceId] = [];
+    }
+
+    const list = db.domains[workspaceId];
+    if (list.some((d) => d.domain.toLowerCase() === clean)) {
+      throw new Error(`域名 "${clean}" 已在当前工作空间中绑定，请勿重复添加`);
+    }
+
+    if (list.length >= 5) {
+      throw new Error("当前工作空间自定义域名配额已达上限（5个），如需扩容请升级方案");
+    }
+
+    const newDomain: DomainDto = {
+      id: `dom-${Date.now()}`,
+      domain: clean,
+      isPrimary: false,
+      isSystem: false,
+      isVerified: false,
+      cnameTarget: "cname.art.link",
+      verificationCode: `art-verify-${Math.random().toString(36).substring(2, 10)}`,
+      sslStatus: "Pending",
+      linkCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    list.push(newDomain);
+    this.saveDB(db);
+    return newDomain;
+  }
+
+  static verifyDomain(workspaceId: string, domainId: string, simulateFail = false): DomainDto {
+    const db = this.getDB();
+    const list = db.domains[workspaceId];
+    if (!list) throw new Error("工作空间不存在");
+
+    const target = list.find((d) => d.id === domainId);
+    if (!target) throw new Error("未找到对应的域名资产");
+
+    if (simulateFail) {
+      target.isVerified = false;
+      target.sslStatus = "Pending";
+      this.saveDB(db);
+      throw new Error("DNS 探测超时：未能从全球根服务器解析到指向 cname.art.link 的有效 CNAME 记录，请确认 DNS 服务商处已正确保存配置");
+    }
+
+    target.isVerified = true;
+    target.sslStatus = "Active";
+    this.saveDB(db);
+
+    const links = db.links[workspaceId] || [];
+    return {
+      ...target,
+      linkCount: links.filter((l) => l.domain.toLowerCase() === target.domain.toLowerCase()).length,
+    };
+  }
+
+  static setPrimaryDomain(workspaceId: string, domainId: string): DomainDto {
+    const db = this.getDB();
+    const list = db.domains[workspaceId];
+    if (!list) throw new Error("工作空间不存在");
+
+    const target = list.find((d) => d.id === domainId);
+    if (!target) throw new Error("未找到对应的域名资产");
+
+    if (!target.isVerified && !target.isSystem) {
+      throw new Error("只有已成功验证生效的域名才可设为工作空间主域名");
+    }
+
+    list.forEach((d) => {
+      d.isPrimary = d.id === domainId;
+    });
+
+    this.saveDB(db);
+
+    const links = db.links[workspaceId] || [];
+    return {
+      ...target,
+      linkCount: links.filter((l) => l.domain.toLowerCase() === target.domain.toLowerCase()).length,
+    };
+  }
+
+  static deleteDomain(workspaceId: string, domainId: string): { success: boolean; message: string } {
+    const db = this.getDB();
+    const list = db.domains[workspaceId];
+    if (!list) throw new Error("工作空间不存在");
+
+    const targetIndex = list.findIndex((d) => d.id === domainId);
+    if (targetIndex === -1) throw new Error("未找到待删除的域名");
+
+    const target = list[targetIndex];
+    if (target.isSystem) {
+      throw new Error("系统默认共享域名为受保护基础设施资产，严禁删除");
+    }
+
+    const wasPrimary = target.isPrimary;
+    list.splice(targetIndex, 1);
+
+    if (wasPrimary) {
+      const sysDomain = list.find((d) => d.isSystem) || list[0];
+      if (sysDomain) {
+        sysDomain.isPrimary = true;
+      }
+    }
+
+    this.saveDB(db);
+    return { success: true, message: `自定义域名 ${target.domain} 已成功解绑移除` };
   }
 
   static getLinks(workspaceId: string): ShortLinkDto[] {

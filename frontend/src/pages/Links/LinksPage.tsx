@@ -253,7 +253,7 @@ export const LinksPage: React.FC = () => {
     >
       {/* 1. 顶部常驻快捷长链缩短栏 */}
       <QuickShortenBar
-        defaultDomain={domains[0]?.domain || "art.link"}
+        defaultDomain={domains.find((d) => d.isPrimary)?.domain || domains[0]?.domain || "art.link"}
         onLinkCreated={handleLinkCreated}
       />
 
