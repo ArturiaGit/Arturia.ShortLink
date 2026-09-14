@@ -10,6 +10,8 @@
 | 版本 | 修订日期 | 修订人 | 修订说明 |
 | :--- | :--- | :--- | :--- |
 | **v1.0.0** | 2026-09-06 | 研发协作与工程效能团队 | 初始化 Git 工作流规范（GitHub Flow、Conventional Commits、人机协同 PR 与发版流程） |
+| **v1.1.0** | 2026-09-14 | AI 代理 (Antigravity) | 更新人机协同工作流中关于功能清单的表述（分别对齐《前端功能开发清单.md》与《后端功能开发清单.md》） |
+| **v1.2.0** | 2026-09-14 | AI 代理 (Antigravity) | 明确后端 Agent 遵循同构 Git 工作流（`feat/phase-X-<name>` 分支），规范后端 `dotnet test` 及唤起 Swagger/Scalar 浏览器审阅门禁 |
 
 ---
 
@@ -177,7 +179,7 @@ NanoID/Base62 生成器生成唯一字符码。
    [切回 main 并拉取最新主干: git checkout main && git pull --rebase origin main]
             │
             ▼
-   [同步在《功能开发清单.md》中勾选对应项 [x]]
+   [同步在对应功能开发清单（前端/后端）中勾选对应项 [x]]
             │
             ▼
    [Agent 立即原地暂停，等待下一阶段指令]
@@ -188,12 +190,13 @@ NanoID/Base62 生成器生成唯一字符码。
 1. **前置基线同步与特性分支切出 (Pre-flight Remote Sync & Branching)**：
    * **阶段启动前检查**：在开始执行任何一个大阶段（Phase）的开发任务前，Agent 必须首先运行 `git status --porcelain` 检查工作区状态。
    * **脏工作区一票否决**：若检测到本地存在未提交或未暂存的代码改动，**严禁执行分支切换与拉取**，必须立即原地停手并向人类开发者告警，由人类确认保存、丢弃或提交后再推进。
-   * **主干同步与分支切出**：切回 `main` 分支执行 `git pull --rebase origin main` 对齐远端最新代码；随后切出独立的阶段特性分支（例如阶段三切出 `git checkout -b feat/phase-3-link-engine`）。
+   * **主干同步与分支切出**：切回 `main` 分支执行 `git pull --rebase origin main` 对齐远端最新代码；随后切出独立的阶段特性分支，**前后端统一采用 `feat/phase-X-<name>` 格式**（例如前端阶段七切出 `feat/phase-7-api-key`，后端阶段一切出 `feat/phase-1-scaffolding`）。
    * **冲突严苛避险与自动回滚**：若拉取时出现任何代码冲突（Rebase Conflict），**Agent 绝对严禁私自强行解决或强制覆盖**；必须立即自动执行 `git rebase --abort` 彻底恢复干净工作区，并原地停止操作向人类开发者发出告警，由人类在终端手动解决冲突。
 2. **验收颗粒度标准**：
-   * 严格以《功能开发清单.md》中的**大阶段（Phase，共阶段一至阶段八）**为验收推进单元，避免过于零碎打断，确保每个阶段交付一个完整闭环的子系统。
-3. **浏览器自动唤起指令**：
-   * 当 Agent 确认当前阶段所有代码与 Mock 跑通后，确保本地 Vite 开发服务器正常运行，并通过系统命令（如 Windows PowerShell: `Start-Process "http://localhost:5173"`）主动打开用户默认浏览器展现成果。
+   * 严格以对应清单（前端 Agent 遵从《前端功能开发清单.md》阶段一至阶段八，后端 Agent 遵从《后端功能开发清单.md》阶段一至阶段五）为验收推进单元，避免过于零碎打断，确保每个阶段交付一个完整闭环的子系统。
+3. **浏览器自动唤起指令（前后端同构门禁）**：
+   * **前端 Agent**：确认当前大阶段所有代码与 Mock 跑通、`tsc -b` 0 报错后，确保本地 Vite 开发服务器正常运行，并通过系统命令（Windows PowerShell: `Start-Process "http://localhost:5173"`）主动打开用户默认浏览器展现前端交互成果。
+   * **后端 Agent**：确认当前大阶段全部代码 `dotnet build` 0 警告 0 报错、`dotnet test` 单元与集成测试 100% 通过后，启动 Kestrel 服务并通过系统命令（Windows PowerShell: `Start-Process "http://localhost:5000/scalar/v1"` 或 `/swagger`）**主动打开用户默认浏览器展现 Scalar/Swagger API 交互文档**供用户体验测试。
 4. **审阅确认机制**：
    * 浏览器打开后，Agent 必须停下工具操作，输出该阶段的核心成果总结，并通过交互等待用户的人工审阅反馈。
 5. **自动化提交、推送与创建 Pull Request**：
@@ -213,7 +216,7 @@ NanoID/Base62 生成器生成唯一字符码。
      git pull --rebase origin main
      git branch -d <feature-branch>
      ```
-   * 合并完成后，Agent 自动将《功能开发清单.md》中本阶段所有完成任务标记为 `[x]`。
+   * 合并完成后，Agent 自动将对应清单中本阶段所有完成任务标记为 `[x]`。
 7. **原地暂停铁律**：
    * 合并与清单标记完成后，Agent 必须**立即停止任何后续编码动作并原地暂停**，向用户报告当前阶段已安全归档，等待用户下发下一阶段的启动指令。
 8. **仓库初始化约束**：
