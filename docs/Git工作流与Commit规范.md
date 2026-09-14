@@ -12,6 +12,7 @@
 | **v1.0.0** | 2026-09-06 | 研发协作与工程效能团队 | 初始化 Git 工作流规范（GitHub Flow、Conventional Commits、人机协同 PR 与发版流程） |
 | **v1.1.0** | 2026-09-14 | AI 代理 (Antigravity) | 更新人机协同工作流中关于功能清单的表述（分别对齐《前端功能开发清单.md》与《后端功能开发清单.md》） |
 | **v1.2.0** | 2026-09-14 | AI 代理 (Antigravity) | 明确后端 Agent 遵循同构 Git 工作流（`feat/phase-X-<name>` 分支），规范后端 `dotnet test` 及唤起 Swagger/Scalar 浏览器审阅门禁 |
+| **v1.2.1** | 2026-09-14 | 后端 Agent (Codex) | 修正清单勾选时机：人工批准后在特性分支勾选并复验，再提交、PR、Squash 合并，避免 main 留下未提交文档 |
 
 ---
 
@@ -134,9 +135,9 @@ NanoID/Base62 生成器生成唯一字符码。
 ## 4. 合并与代码审查流程 (PR & Merge)
 
 1. **本地自检清单 (Pre-Merge Checklist)**：
-   * 代码静态检查（`npm run lint`）0 报错。
-   * TypeScript 严格编译（`tsc --noEmit`）0 报错。
-   * 本地构建打包（`npm run build`）顺利通过。
+   * 前端：`npm run lint`、`npx tsc -b` 与 `npm run build` 全部通过。
+   * 后端：locked restore、Release build、test 与 `dotnet format --verify-no-changes` 全部通过；构建 0 警告、测试 0 失败/取消/跳过。
+   * 通用：`git diff --check` 与密钥扫描通过；审阅后发生任何修改必须重跑相关门禁。
 2. **合并方式选择**：
    * 推荐采用 **Squash and Merge（压缩合并）**：将特性分支中的多个临时小步提交压缩为一个符合 Conventional Commits 规范的干净提交合入 `main`，保持主干历史线性整洁。
 3. **版本 Tag 触发**：
@@ -155,10 +156,10 @@ NanoID/Base62 生成器生成唯一字符码。
   └─ 切出阶段特性分支 (git checkout -b feat/phase-X-<name>)
         │
         ▼
-[Agent 在特性分支中执行阶段开发与本地自测 (tsc / lint)]
+[Agent 在特性分支中执行阶段开发与本地自测]
         │
         ▼
-[本地运行 Vite 开发服务并自动调用浏览器唤起页面 (Start-Process)]
+[启动前端 Vite 或后端 Kestrel，并自动调用浏览器打开页面/Scalar]
         │
         ▼
 [等待用户人工审查与体验]
@@ -167,19 +168,19 @@ NanoID/Base62 生成器生成唯一字符码。
    └── 若审查通过 (用户确认)
             │
             ▼
+   [Agent 在特性分支勾选本阶段清单、更新修订记录并复跑全部门禁]
+             │
+             ▼
    [Agent 提交并推送特性分支至远程: git push -u origin feat/phase-X-<name>]
-            │
-            ▼
+             │
+             ▼
    [Agent 自动创建 Pull Request: gh pr create --base main --head feat/phase-X-<name>]
-            │
-            ▼
+             │
+             ▼
    [Agent 自动通过命令行执行 Squash 合并: gh pr merge --squash --delete-branch]
-            │
-            ▼
-   [切回 main 并拉取最新主干: git checkout main && git pull --rebase origin main]
-            │
-            ▼
-   [同步在对应功能开发清单（前端/后端）中勾选对应项 [x]]
+             │
+             ▼
+   [切回 main 并拉取最新主干，验证清单已勾选且工作区纯净]
             │
             ▼
    [Agent 立即原地暂停，等待下一阶段指令]
@@ -196,11 +197,14 @@ NanoID/Base62 生成器生成唯一字符码。
    * 严格以对应清单（前端 Agent 遵从《前端功能开发清单.md》阶段一至阶段八，后端 Agent 遵从《后端功能开发清单.md》阶段一至阶段五）为验收推进单元，避免过于零碎打断，确保每个阶段交付一个完整闭环的子系统。
 3. **浏览器自动唤起指令（前后端同构门禁）**：
    * **前端 Agent**：确认当前大阶段所有代码与 Mock 跑通、`tsc -b` 0 报错后，确保本地 Vite 开发服务器正常运行，并通过系统命令（Windows PowerShell: `Start-Process "http://localhost:5173"`）主动打开用户默认浏览器展现前端交互成果。
-   * **后端 Agent**：确认当前大阶段全部代码 `dotnet build` 0 警告 0 报错、`dotnet test` 单元与集成测试 100% 通过后，启动 Kestrel 服务并通过系统命令（Windows PowerShell: `Start-Process "http://localhost:5000/scalar/v1"` 或 `/swagger`）**主动打开用户默认浏览器展现 Scalar/Swagger API 交互文档**供用户体验测试。
+   * **后端 Agent**：确认当前大阶段全部代码 `dotnet build` 0 警告 0 报错、`dotnet test` 单元与集成测试 100% 通过后，启动 Kestrel 服务并通过系统命令（Windows PowerShell: `Start-Process "http://localhost:5000/scalar/v1"`）**主动打开用户默认浏览器展现 Scalar API 交互文档**供用户体验测试。
 4. **审阅确认机制**：
    * 浏览器打开后，Agent 必须停下工具操作，输出该阶段的核心成果总结，并通过交互等待用户的人工审阅反馈。
-5. **自动化提交、推送与创建 Pull Request**：
-   * 用户明确同意后，Agent 自动在特性分支执行：
+5. **批准后清单勾选与最终复验**：
+   * 用户明确同意后，Agent 必须仍在特性分支中将本阶段已验收项勾选为 `[x]`，同步追加清单文档修订记录，然后重跑对应构建、测试、格式、Diff 与密钥扫描门禁。
+   * 用户批准前不得预先勾选；合并后不得直接在 `main` 补写清单。
+6. **自动化提交、推送与创建 Pull Request**：
+   * 最终复验通过后，Agent 自动在特性分支执行：
      ```bash
      git add .
      git commit -m "<type>(<scope>): <清晰规范的阶段完成说明>"
@@ -208,7 +212,7 @@ NanoID/Base62 生成器生成唯一字符码。
      gh pr create --base main --head <feature-branch> --title "<type>(<scope>): <说明>" --body "<阶段成果与变更清单>"
      ```
    * 此时在 GitHub 网页端的 **Pull requests** 标签页即可完整看到该合并请求。
-6. **自动命令行 Squash 合并与环境同步 (CLI Squash Merge)**：
+7. **自动命令行 Squash 合并与环境同步 (CLI Squash Merge)**：
    * Agent 紧接着调用 GitHub CLI 自动执行 Squash 合并并清理远端临时分支：
      ```bash
      gh pr merge --squash --delete-branch
@@ -216,9 +220,9 @@ NanoID/Base62 生成器生成唯一字符码。
      git pull --rebase origin main
      git branch -d <feature-branch>
      ```
-   * 合并完成后，Agent 自动将对应清单中本阶段所有完成任务标记为 `[x]`。
-7. **原地暂停铁律**：
-   * 合并与清单标记完成后，Agent 必须**立即停止任何后续编码动作并原地暂停**，向用户报告当前阶段已安全归档，等待用户下发下一阶段的启动指令。
-8. **仓库初始化约束**：
-   * 在启动**阶段一（工程底座与 Mock 基础设施）**时，由 Agent 自动执行 `git init`，配置 `.gitignore`，完成首个全套规范文档的基线提交，并根据用户提供的远程仓库地址绑定 `remote origin`。
+   * 同步 `main` 后必须验证清单勾选已随 PR 合入且 `git status --porcelain` 为空。
+8. **原地暂停铁律**：
+   * 合并、主干同步与清洁验证完成后，Agent 必须**立即停止任何后续编码动作并原地暂停**，向用户报告当前阶段已安全归档，等待用户下发下一阶段的启动指令。
+9. **仓库初始化约束**：
+   * 仅全新且尚未初始化的仓库可执行 `git init`；已有 `.git` 的项目阶段一不得重复初始化或重绑远程。
 
