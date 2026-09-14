@@ -12,8 +12,8 @@
 * **项目定位**：商业化多租户短链 SaaS 平台（对标 Dub.co / Bitly 体验，具备工作空间隔离、自定义独立域名、动态二维码定制、UTM 营销归因分析及毫秒级 302 重定向能力）。
 * **协同分工模式 (双 Agent 协作架构)**：
   * **前端 Agent（本工作区会话）**：专职负责前端工程（React 19 + TypeScript + Vite + Tailwind CSS + shadcn/ui + Lucide Icons + Recharts），由高保真 Mock 引擎驱动独立闭环运行；**严禁编写任何 C# 后端代码**；每次完成前端大阶段验收时，**必须同步更新后端规范文档**。
-  * **后端 Agent（后续独立会话）**：专职负责后端服务（.NET 10 + C# ASP.NET Core WebAPI + MySQL 8.x），基于《后端详细设计与技术实现说明书.md》和《后端功能开发清单.md》独立交付。
-* **当前进度**：**前端阶段一至阶段六已 100% 达成验收；待执行前端【阶段七：API Key 管理】与【阶段八：公共端与密码解锁】；后端架构规范已完成 100% 对齐，后端待启动。**
+  * **后端 Agent（独立会话）**：专职负责后端服务（.NET 10 + C# ASP.NET Core WebAPI + MySQL 8.0.46），基于《后端详细设计与技术实现说明书.md》和《后端功能开发清单.md》独立交付。
+* **当前进度**：**前端阶段一至阶段六已 100% 达成验收；前端阶段七、八待执行；后端正在执行“契约冻结门禁”，Phase 1 C# 工程尚未启动，必须等待契约冻结人工批准并合并。**
 
 ### 1.1 仓库根目录结构拓扑
 
@@ -29,7 +29,7 @@ Arturia.ShortLink/
 │   ├── Git工作流与Commit规范.md        # GitHub Flow、Conventional Commits 与人机大阶段审阅自动推送工作流
 │   ├── 版本管理规范.md                 # SemVer 2.0.0、最小递增原则 (Minimal Bump)、全工程统一版本号
 │   ├── 接口契约规范.md                 # .NET 10 WebAPI 统一响应结构、Header 租户隔离上下文、DTO 契约与密码解锁
-│   ├── 数据库设计.sql                  # MySQL 8.x 高性能 DDL 建表脚本、复合唯一索引与初始种子数据
+│   ├── 数据库设计.sql                  # MySQL 8.0.46 DDL 建表脚本、复合唯一索引与初始种子数据
 │   ├── 测试与质量验收规范.md           # 大阶段浏览器走查清单、冒烟测试、边界输入异常与发布门禁
 │   ├── 技术架构说明书.md               # 全局拓扑、高性能 302 重定向时序流转、缓存防穿透与后端架构建议
 │   └── 部署与环境配置规范.md           # 环境变量 (.env)、Vite 生产构建优化、Nginx 生产反代与 Docker 编排
@@ -68,11 +68,11 @@ Arturia.ShortLink/
    * 严禁在业务页面中写裸 `<button>`、`<input>`、`<select>` 等原生标签，必须统一使用 `@/components/ui/` 原子组件。
    * 严禁硬编码 HEX 颜色值（如 `bg-[#18181b]`），必须使用语义 Token 或 Zinc 色阶；破坏性操作必须弹 `AlertDialog` 拦截。
 5. **人机协同大阶段审阅、PR 与自动合并闭环（核心执行铁律）**：
-   * 严格以大阶段（Phase 1 至 Phase 8）为最小交付单元。
+   * 严格以前端 Phase 1～8、后端 Phase 1～5 为各自最小交付单元，禁止跨阶段混合交付。
    * **阶段启动前切出特性分支**：检查工作区纯净，`git checkout main && git pull --rebase origin main`；切出阶段独立分支 `feat/phase-X-<name>` 开发。
-   * **每完成一个大阶段，Agent 必须通过系统命令主动唤起用户默认浏览器（`http://localhost:5173`）供人工审阅**。
+   * **每完成一个大阶段，Agent 必须主动唤起审阅入口**：前端打开 `http://localhost:5173`，后端启动 API 后打开 `http://localhost:5000/scalar/v1`。
    * **在未获得用户明确同意前，绝对严禁执行 `git commit` 或 `git push`**。
-   * 用户确认同意后，Agent 自动执行规范 Conventional Commit、推送特性分支至 GitHub、使用 `gh pr create` 发起 Pull Request、再调用 `gh pr merge --squash --delete-branch` 完成自动合并，切回 `main` 同步并打勾清单 `[x]`，随后**必须立即原地暂停**，等待下一阶段指令。
+   * 用户确认同意后，Agent 先在特性分支勾选本阶段清单、更新修订记录并复跑门禁，再执行 Conventional Commit、推送、`gh pr create` 与 `gh pr merge --squash --delete-branch`；切回 `main` 同步并验证清单已合入、工作区纯净，随后**必须立即原地暂停**。
 6. **语言与命名标准**：
    * 代码标识符（变量、函数、组件、文件名）严格全英文；代码注释中文；用户可见 UI 文案地道纯中文；`docs/` 下文档全中文。
 7. **版本管理与最小递增**：
@@ -94,30 +94,30 @@ Agent 在承接并执行任一大阶段任务时，必须严格按以下 8 步�
 步骤 1: 查阅清单 ──► 确认当前阶段目标，阅读对应必读规范
     │
     ▼
-步骤 2: 编码实现 ──► 仅在前端工程中开发页面、组件、样式与本地 Mock 数据
+步骤 2: 实施 ──► 前端仅修改 frontend/；后端仅修改 backend/、根工程配置及已批准的规范文档
     │
     ▼
-步骤 3: 本地自测 ──► 运行 tsc -b 与 npm run lint，确保 0 报错、无控制台异常
+步骤 3: 本地自测 ──► 前端运行 tsc/build/lint；后端运行 locked restore、Release build、test、format
     │
     ▼
-步骤 4: 唤起审阅 ──► 确保 Vite 运行，执行 Start-Process 自动打开浏览器供用户体验
+步骤 4: 唤起审阅 ──► 前端打开 Vite；后端启动 Kestrel 并打开 Scalar
     │
     ▼
 步骤 5: 人工确认 ──► 停下操作，汇报本阶段完成成果，等待用户确认
     │   ├── 若需修改 ──► 就地修改后重新打开浏览器审阅
-    │   └── 用户同意 ──► 进入自动提交与 PR 合并闭环
+    │   └── 用户同意 ──► 在特性分支勾选清单、更新修订记录并复跑全部门禁
     ▼
-步骤 6: 提交/PR/自动合并 ──► push 特性分支 ──► gh pr create ──► gh pr merge --squash ──► 切回 main 同步
+步骤 6: 提交/PR/自动合并 ──► commit/push 特性分支 ──► gh pr create ──► gh pr merge --squash ──► 切回 main 同步并验净
     │
     ▼
-步骤 7: 原地暂停 ──► 清单勾选 [x]，Agent 立即停手暂停，等待下一阶段指令
+步骤 7: 原地暂停 ──► 确认清单已随 PR 合入后立即停手，等待下一阶段指令
 ```
 
 ---
 
 ## 5. 常用开发与构建命令速查
 
-> 统一在 `frontend/` 目录或工程根目录通过 PowerShell / bash 执行：
+> 前端命令在 `frontend/`，Git 与后端解决方案命令在仓库根目录通过 PowerShell / bash 执行：
 
 ```bash
 # 进入前端目录
@@ -150,6 +150,18 @@ npx tsc -b
 
 # 生产环境打包验证 (门禁)
 npm run build
+
+# 后端 Phase 1 建立后使用的统一门禁
+dotnet tool restore
+dotnet tool run dotnet-ef --version
+dotnet restore backend/Arturia.ShortLink.sln --locked-mode
+dotnet build backend/Arturia.ShortLink.sln -c Release --no-restore
+dotnet test backend/Arturia.ShortLink.sln -c Release --no-build
+dotnet format backend/Arturia.ShortLink.sln --verify-no-changes
+
+# 后端人工审阅入口
+dotnet run --project backend/src/Arturia.ShortLink.Api --urls http://localhost:5000
+Start-Process "http://localhost:5000/scalar/v1"
 
 # 自动提交并推送特性分支
 git add .
