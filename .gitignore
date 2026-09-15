@@ -22,8 +22,23 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
+*.user
+*.userosscache
+*.sln.docstates
 *.sw?
+
+# .NET
+**/bin/
+**/obj/
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# Local secrets
+secrets.json
+appsettings.Local.json
 
 # Antigravity & Agent internal
 .gemini
