@@ -64,6 +64,12 @@ public sealed class ApiBaselineTests : IClassFixture<WebApplicationFactory<ApiAs
         Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/system/version", out _));
         Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/health/live", out _));
         Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/health/ready", out _));
+        Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/auth/login", out _));
+        Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/auth/register", out _));
+        Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/auth/me", out _));
+        Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/workspaces", out _));
+        Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/workspaces/check-slug", out _));
+        Assert.True(document.RootElement.GetProperty("paths").TryGetProperty("/api/v1/workspaces/{workspaceId}/members", out _));
         Assert.DoesNotContain("passwordHash", openApi, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("keyHash", openApi, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("openapi", scalar, StringComparison.OrdinalIgnoreCase);

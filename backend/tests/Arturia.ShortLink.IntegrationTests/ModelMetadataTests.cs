@@ -1,4 +1,5 @@
 using Arturia.ShortLink.Domain.Entities;
+using Arturia.ShortLink.Domain.Interfaces;
 using Arturia.ShortLink.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -67,5 +68,11 @@ public sealed class ModelMetadataTests
 
 internal sealed class TestWorkspaceContext(ulong? workspaceId) : IWorkspaceContext
 {
-    public ulong? WorkspaceId { get; set; } = workspaceId;
+    public ulong? CurrentWorkspaceId { get; set; } = workspaceId;
+    public string? CurrentRole { get; private set; }
+    public void SetContext(ulong workspaceId, string role)
+    {
+        CurrentWorkspaceId = workspaceId;
+        CurrentRole = role;
+    }
 }

@@ -1,10 +1,23 @@
 using System.Net;
 using System.Text.Json;
+using System.Text;
 using Arturia.ShortLink.Api.Health;
 using Arturia.ShortLink.Api.Middleware;
 using Arturia.ShortLink.Api.Serialization;
 using Arturia.ShortLink.Application.Common;
+using Arturia.ShortLink.Application.Auth.Interfaces;
+using Arturia.ShortLink.Application.Auth.Validators;
+using Arturia.ShortLink.Api.Services;
 using Arturia.ShortLink.Infrastructure.Persistence;
+using Arturia.ShortLink.Infrastructure.Security;
+using Arturia.ShortLink.Infrastructure.Services;
+using Arturia.ShortLink.Application.Workspaces.Interfaces;
+using Arturia.ShortLink.Domain.Interfaces;
+using Arturia.ShortLink.Infrastructure.Context;
+using FluentValidation;
+using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +42,36 @@ builder.Services.Configure<ApiBehaviorOptions>(options => options.InvalidModelSt
     return new BadRequestObjectResult(ApiResponse<object>.Fail(400, "请求参数验证失败。", new { errors }));
 });
 builder.Services.AddOpenApi("v1");
-builder.Services.AddSingleton<IWorkspaceContext, NullWorkspaceContext>();
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
+builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
+builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddOptions<JwtOptions>().Bind(builder.Configuration.GetSection(JwtOptions.SectionName)).Validate(options =>
+    Encoding.UTF8.GetByteCount(options.SecretKey) >= 32 && !string.IsNullOrWhiteSpace(options.Issuer) && !string.IsNullOrWhiteSpace(options.Audience),
+    "JWT 配置无效。SecretKey 至少需要 32 字节，Issuer 与 Audience 不得为空。").ValidateOnStart();
+var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+{
+    options.MapInboundClaims = false;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwt.Issuer,
+        ValidAudience = jwt.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SecretKey)),
+        NameClaimType = "name"
+    };
+});
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<IWorkspaceContext, WorkspaceContext>();
 builder.Services.AddSingleton<UtcConnectionInterceptor>();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("缺少数据库连接配置 ConnectionStrings:DefaultConnection。");
@@ -76,6 +118,9 @@ app.UseStatusCodePages(async statusContext =>
         await context.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(context.Response.StatusCode, "请求处理失败。"));
     }
 });
+app.UseAuthentication();
+app.UseMiddleware<WorkspaceMiddleware>();
+app.UseAuthorization();
 app.MapOpenApi("/openapi/{documentName}.json");
 app.MapScalarApiReference("/scalar/v1", options => options.WithOpenApiRoutePattern("/openapi/v1.json"));
 app.MapGet("/health/live", () => Results.Ok())
