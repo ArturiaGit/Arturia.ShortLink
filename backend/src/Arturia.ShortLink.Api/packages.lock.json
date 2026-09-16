@@ -293,6 +293,7 @@
           "Arturia.ShortLink.Domain": "[0.4.0, )",
           "BCrypt.Net-Next": "[4.2.1, )",
           "DnsClient": "[1.8.0, )",
+          "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.12, )",
           "Microsoft.EntityFrameworkCore": "[9.0.20, )",
           "Pomelo.EntityFrameworkCore.MySql": "[9.0.0, )"
         }

@@ -1,4 +1,5 @@
 using Arturia.ShortLink.Domain.Entities;
+using Arturia.ShortLink.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ShortLinkEntity = Arturia.ShortLink.Domain.Entities.ShortLink;
@@ -8,7 +9,7 @@ namespace Arturia.ShortLink.Infrastructure.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options, IWorkspaceContext workspaceContext)
     : DbContext(options)
 {
-    public ulong? CurrentWorkspaceId => workspaceContext.WorkspaceId;
+    public ulong? CurrentWorkspaceId => workspaceContext.CurrentWorkspaceId;
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Workspace> Workspaces => Set<Workspace>();

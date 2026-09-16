@@ -1,4 +1,5 @@
 using Arturia.ShortLink.Domain.Entities;
+using Arturia.ShortLink.Domain.Interfaces;
 using Arturia.ShortLink.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
