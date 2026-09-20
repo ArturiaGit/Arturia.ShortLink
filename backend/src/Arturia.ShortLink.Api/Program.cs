@@ -12,12 +12,15 @@ using Arturia.ShortLink.Infrastructure.Persistence;
 using Arturia.ShortLink.Infrastructure.Security;
 using Arturia.ShortLink.Infrastructure.Services;
 using Arturia.ShortLink.Application.Workspaces.Interfaces;
+using Arturia.ShortLink.Application.ApiKeys.Interfaces;
+using Arturia.ShortLink.Application.Links.Interfaces;
 using Arturia.ShortLink.Domain.Interfaces;
 using Arturia.ShortLink.Infrastructure.Context;
+using Arturia.ShortLink.Infrastructure.Authentication;
+using Arturia.ShortLink.Api.Extensions;
 using FluentValidation;
 using FluentValidation.AspNetCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -49,28 +52,22 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IWorkspaceMemberService, WorkspaceMemberService>();
+builder.Services.AddScoped<IApiKeyService, ApiKeyService>();
+builder.Services.AddScoped<ILinkService, LinkService>();
+builder.Services.AddScoped<IRiskControlService, RiskControlService>();
+builder.Services.AddSingleton<IBase62Generator, Base62Generator>();
+builder.Services.AddMemoryCache();
+builder.Services.AddApplicationRateLimiting();
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddOptions<JwtOptions>().Bind(builder.Configuration.GetSection(JwtOptions.SectionName)).Validate(options =>
     Encoding.UTF8.GetByteCount(options.SecretKey) >= 32 && !string.IsNullOrWhiteSpace(options.Issuer) && !string.IsNullOrWhiteSpace(options.Audience),
     "JWT 配置无效。SecretKey 至少需要 32 字节，Issuer 与 Audience 不得为空。").ValidateOnStart();
-var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
-{
-    options.MapInboundClaims = false;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwt.Issuer,
-        ValidAudience = jwt.Audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SecretKey)),
-        NameClaimType = "name"
-    };
-});
-builder.Services.AddAuthorization();
+builder.Services.AddAuthentication(DualBearerAuthenticationHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, DualBearerAuthenticationHandler>(DualBearerAuthenticationHandler.SchemeName, _ => { });
+builder.Services.AddAuthorization(options => options.AddPolicy("JwtOnly", policy => policy
+    .RequireAuthenticatedUser()
+    .RequireClaim(DualBearerAuthenticationHandler.CredentialTypeClaim, DualBearerAuthenticationHandler.JwtCredential)));
 builder.Services.AddScoped<IWorkspaceContext, WorkspaceContext>();
 builder.Services.AddSingleton<UtcConnectionInterceptor>();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
@@ -110,6 +107,7 @@ var app = builder.Build();
 app.UseMiddleware<ApiExceptionMiddleware>();
 app.UseForwardedHeaders();
 if (app.Environment.IsDevelopment()) app.UseCors("DevelopmentVite");
+app.UseRouting();
 app.UseStatusCodePages(async statusContext =>
 {
     var context = statusContext.HttpContext;
@@ -119,6 +117,9 @@ app.UseStatusCodePages(async statusContext =>
     }
 });
 app.UseAuthentication();
+app.UseMiddleware<ApiKeyScopeMiddleware>();
+if (!(app.Environment.IsEnvironment("Testing") && app.Configuration.GetValue<bool>("RateLimiting:DisabledForTesting")))
+    app.UseRateLimiter();
 app.UseMiddleware<WorkspaceMiddleware>();
 app.UseAuthorization();
 app.MapOpenApi("/openapi/{documentName}.json");

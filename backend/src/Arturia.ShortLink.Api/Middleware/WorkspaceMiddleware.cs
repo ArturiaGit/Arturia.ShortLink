@@ -2,6 +2,8 @@ using Arturia.ShortLink.Application.Common;
 using Arturia.ShortLink.Domain.Interfaces;
 using Arturia.ShortLink.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Arturia.ShortLink.Infrastructure.Authentication;
 
 namespace Arturia.ShortLink.Api.Middleware;
 
@@ -10,7 +12,19 @@ public sealed class WorkspaceMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context, AppDbContext dbContext, IWorkspaceContext workspaceContext, ICurrentUserService currentUserService)
     {
         var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
-        if (IsTenantFreePath(path) || currentUserService.UserId is not { } userId)
+        if (currentUserService.UserId is not { } userId)
+        {
+            await next(context);
+            return;
+        }
+
+        if (context.User.FindFirstValue(DualBearerAuthenticationHandler.CredentialTypeClaim) == DualBearerAuthenticationHandler.ApiKeyCredential)
+        {
+            await HandleApiKeyAsync(context, workspaceContext);
+            if (!context.Response.HasStarted) await next(context);
+            return;
+        }
+        if (IsTenantFreePath(path))
         {
             await next(context);
             return;
@@ -47,6 +61,22 @@ public sealed class WorkspaceMiddleware(RequestDelegate next)
 
         workspaceContext.SetContext(member.WorkspaceId, member.Role.ToString().ToLowerInvariant());
         await next(context);
+    }
+
+    private static async Task HandleApiKeyAsync(HttpContext context, IWorkspaceContext workspaceContext)
+    {
+        if (!ulong.TryParse(context.User.FindFirstValue(DualBearerAuthenticationHandler.WorkspaceIdClaim), out var apiKeyWorkspaceId))
+        {
+            await WriteFailureAsync(context, 401, "API Key 缺少工作空间声明");
+            return;
+        }
+        if (context.Request.Headers.TryGetValue("X-Workspace-Id", out var header) &&
+            (!ulong.TryParse(header, out var headerWorkspaceId) || headerWorkspaceId != apiKeyWorkspaceId))
+        {
+            await WriteFailureAsync(context, 403, "API Key 无权切换工作空间");
+            return;
+        }
+        workspaceContext.SetContext(apiKeyWorkspaceId, "admin");
     }
 
     private static bool IsTenantFreePath(string path) =>
