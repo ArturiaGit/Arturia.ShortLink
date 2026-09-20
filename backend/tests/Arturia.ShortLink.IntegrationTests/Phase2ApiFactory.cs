@@ -9,7 +9,7 @@ using Arturia.ShortLink.Infrastructure.Context;
 
 namespace Arturia.ShortLink.IntegrationTests;
 
-public sealed class Phase2ApiFactory : WebApplicationFactory<ApiAssemblyMarker>, IAsyncLifetime
+public class Phase2ApiFactory : WebApplicationFactory<ApiAssemblyMarker>, IAsyncLifetime
 {
     private readonly MySqlContainer database = new MySqlBuilder("mysql:8.0.46")
         .WithDatabase("arturia_phase2")
@@ -27,6 +27,7 @@ public sealed class Phase2ApiFactory : WebApplicationFactory<ApiAssemblyMarker>,
         builder.UseSetting("Jwt:Issuer", "Arturia.ShortLink.Tests");
         builder.UseSetting("Jwt:Audience", "Arturia.ShortLink.Tests");
         builder.UseSetting("Jwt:ExpirationDays", "7");
+        builder.UseSetting("RateLimiting:DisabledForTesting", "true");
     }
 
     public string ConnectionString => database.GetConnectionString();
@@ -49,5 +50,14 @@ public sealed class Phase2ApiFactory : WebApplicationFactory<ApiAssemblyMarker>,
         context.Database.SetCommandTimeout(TimeSpan.FromSeconds(30));
         await Task.CompletedTask;
         return context;
+    }
+}
+
+public sealed class RateLimitingApiFactory : Phase2ApiFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("RateLimiting:DisabledForTesting", "false");
     }
 }

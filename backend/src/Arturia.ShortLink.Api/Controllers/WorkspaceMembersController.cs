@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Arturia.ShortLink.Api.Controllers;
 
 [ApiController]
-[Authorize]
+[Authorize(Policy = "JwtOnly")]
 [Route("api/v1/workspaces/{workspaceId}/members")]
 public sealed class WorkspaceMembersController(IWorkspaceMemberService memberService, ICurrentUserService currentUserService) : ControllerBase
 {
