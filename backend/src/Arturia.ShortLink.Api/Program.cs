@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text;
+using System.Threading.Channels;
 using Arturia.ShortLink.Api.Health;
 using Arturia.ShortLink.Api.Middleware;
 using Arturia.ShortLink.Api.Serialization;
@@ -18,6 +19,9 @@ using Arturia.ShortLink.Domain.Interfaces;
 using Arturia.ShortLink.Infrastructure.Context;
 using Arturia.ShortLink.Infrastructure.Authentication;
 using Arturia.ShortLink.Api.Extensions;
+using Arturia.ShortLink.Application.Common.Interfaces;
+using Arturia.ShortLink.Domain.Common;
+using Arturia.ShortLink.Infrastructure.Channels;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
@@ -60,6 +64,17 @@ builder.Services.AddMemoryCache();
 builder.Services.AddApplicationRateLimiting();
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddSingleton(Channel.CreateBounded<ClickLogEvent>(new BoundedChannelOptions(50000)
+{
+    FullMode = BoundedChannelFullMode.Wait,
+    SingleReader = true,
+    SingleWriter = false
+}));
+builder.Services.AddSingleton<IChannelLogWriter, ChannelLogWriter>();
+builder.Services.AddSingleton<IPasswordTicketService, PasswordTicketService>();
+builder.Services.AddSingleton<IUserAgentParser, UserAgentParser>();
+builder.Services.AddSingleton<IGeoLocationResolver, DefaultGeoLocationResolver>();
+builder.Services.AddHostedService<LogConsumerHostedService>();
 builder.Services.AddOptions<JwtOptions>().Bind(builder.Configuration.GetSection(JwtOptions.SectionName)).Validate(options =>
     Encoding.UTF8.GetByteCount(options.SecretKey) >= 32 && !string.IsNullOrWhiteSpace(options.Issuer) && !string.IsNullOrWhiteSpace(options.Audience),
     "JWT 配置无效。SecretKey 至少需要 32 字节，Issuer 与 Audience 不得为空。").ValidateOnStart();

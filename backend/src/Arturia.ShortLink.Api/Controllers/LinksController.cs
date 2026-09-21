@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Arturia.ShortLink.Api.Extensions;
 using Microsoft.AspNetCore.RateLimiting;
+using Arturia.ShortLink.Api.Services;
+using Arturia.ShortLink.Infrastructure.Persistence;
 
 namespace Arturia.ShortLink.Api.Controllers;
 
@@ -15,6 +17,32 @@ namespace Arturia.ShortLink.Api.Controllers;
 [Route("api/v1/links")]
 public sealed class LinksController(ILinkService linkService, ICurrentUserService currentUserService) : ControllerBase
 {
+    [HttpPost("{slug}/unlock")]
+    [AllowAnonymous]
+    [EnableRateLimiting(RateLimiterExtensions.AuthUnlockPolicy)]
+    public async Task<ActionResult<ApiResponse<UnlockLinkResultDto>>> UnlockLink(string slug, UnlockLinkCommand command,
+        [FromServices] AppDbContext db, [FromServices] IPasswordTicketService ticketService, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(command.Password))
+            return BadRequest(ApiResponse<UnlockLinkResultDto>.Fail(400, "访问密码不能为空"));
+        var (domain, link) = await PublicLinkLookup.FindAsync(db, Request.Host, slug, cancellationToken);
+        if (domain is null || link is null || link.IsBanned || !link.IsEnabled ||
+            link.ExpiresAt is { } expires && expires <= DateTime.UtcNow || string.IsNullOrEmpty(link.PasswordHash))
+            return NotFound(ApiResponse<UnlockLinkResultDto>.Fail(404, "短链不存在或已失效"));
+        if (!BCrypt.Net.BCrypt.Verify(command.Password, link.PasswordHash))
+            return BadRequest(ApiResponse<UnlockLinkResultDto>.Fail(400, "访问密码错误，请重新输入"));
+        var ticket = ticketService.GenerateTicket(domain.Id, slug, link.PasswordHash, DateTimeOffset.UtcNow.AddMinutes(30));
+        Response.Cookies.Append($"art_pwd_ticket_{slug}", ticket, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsProduction() || Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Path = "/",
+            MaxAge = TimeSpan.FromMinutes(30)
+        });
+        return Ok(ApiResponse<UnlockLinkResultDto>.Ok(new UnlockLinkResultDto(link.OriginalUrl, ticket), "解锁成功"));
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<PageResultDto<ShortLinkItemDto>>>> List(
         [FromQuery] int page = 1,

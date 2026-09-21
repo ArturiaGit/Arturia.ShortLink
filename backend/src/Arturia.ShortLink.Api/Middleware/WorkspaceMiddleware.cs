@@ -82,6 +82,7 @@ public sealed class WorkspaceMiddleware(RequestDelegate next)
     private static bool IsTenantFreePath(string path) =>
         !path.StartsWith("/api/v1/", StringComparison.Ordinal) ||
         path.StartsWith("/api/v1/auth/", StringComparison.Ordinal) ||
+        path.StartsWith("/api/v1/links/", StringComparison.Ordinal) && path.EndsWith("/unlock", StringComparison.Ordinal) ||
         path.StartsWith("/api/v1/system/", StringComparison.Ordinal) ||
         path == "/api/v1/workspaces" ||
         path == "/api/v1/workspaces/check-slug";
